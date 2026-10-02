@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redcien · Internet para tu hogar y negocio</title>
+<meta name="description" content="Redcien: internet estable, rápido y con soporte cercano.">
+<style>
+:root{--bg:#0b1220;--card:#131c30;--text:#e8edf7;--muted:#9aa7bf;--accent:#2f9bff;--accent2:#22d3a6;--line:#22304d}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+header{position:sticky;top:0;background:rgba(11,18,32,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10}
+nav{display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{font-weight:800;font-size:1.3rem}.logo b{color:var(--accent)}
+nav ul{display:flex;gap:20px;list-style:none;margin:0;padding:0}
+nav a{color:var(--muted);font-size:.95rem}nav a:hover{color:var(--text)}
+.btn{display:inline-block;background:var(--accent);color:#04101f;font-weight:700;padding:12px 22px;border-radius:10px}
+.btn.alt{background:transparent;border:1px solid var(--line);color:var(--text)}
+section{padding:72px 0;scroll-margin-top:60px}
+h1{font-size:clamp(2rem,6vw,3.4rem);line-height:1.1;margin:0 0 16px}
+h2{font-size:1.8rem;margin:0 0 8px}.sub{color:var(--muted);margin:0 0 32px}
+.hero p{max-width:560px;color:var(--muted);font-size:1.1rem}
+.hero .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+.card h3{margin:0 0 6px}.price{font-size:2rem;font-weight:800;color:var(--accent2)}.price small{font-size:.9rem;color:var(--muted);font-weight:400}
+.card ul{padding-left:18px;color:var(--muted);margin:12px 0 18px}
+.card.hot{border-color:var(--accent)}
+form{display:grid;gap:12px;max-width:520px}
+input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit}
+footer{border-top:1px solid var(--line);padding:24px 0;color:var(--muted);font-size:.9rem}
+#msg{color:var(--accent2);min-height:1.4em}
+@media(max-width:640px){nav ul{display:none}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><nav>
+  <a class="logo" href="#inicio">Red<b>cien</b></a>
+  <ul><li><a href="#inicio">Inicio</a></li><li><a href="#planes">Planes</a></li><li><a href="#cobertura">Cobertura</a></li><li><a href="#contacto">Contacto</a></li></ul>
+  <a class="btn" href="#contacto">Contratar</a>
+</nav></div></header>
+
+<main>
+<section id="inicio" class="hero"><div class="wrap">
+  <h1>Internet estable para tu hogar y tu negocio.</h1>
+  <p>Conexión rápida, sin cortes y con soporte técnico que responde. Instalación rápida y precios claros.</p>
+  <div class="cta"><a class="btn" href="#planes">Ver planes</a><a class="btn alt" href="#cobertura">Revisar cobertura</a></div>
+</div></section>
+
+<section id="planes"><div class="wrap">
+  <h2>Planes</h2><p class="sub">Elige la velocidad que necesitas. Precios de ejemplo, ajústalos a los reales.</p>
+  <div class="grid">
+    <div class="card"><h3>Hogar</h3><div class="price">$0<small>/mes</small></div><ul><li>50 Mbps</li><li>Router incluido</li><li>Soporte por WhatsApp</li></ul><a class="btn alt" href="#contacto" data-plan="Hogar">Lo quiero</a></div>
+    <div class="card hot"><h3>Familia</h3><div class="price">$0<small>/mes</small></div><ul><li>100 Mbps</li><li>Router WiFi 5 incluido</li><li>Soporte prioritario</li></ul><a class="btn" href="#contacto" data-plan="Familia">Lo quiero</a></div>
+    <div class="card"><h3>Negocio</h3><div class="price">$0<small>/mes</small></div><ul><li>200 Mbps</li><li>IP fija opcional</li><li>Soporte 24/7</li></ul><a class="btn alt" href="#contacto" data-plan="Negocio">Lo quiero</a></div>
+  </div>
+</div></section>
+
+<section id="cobertura"><div class="wrap">
+  <h2>Cobertura</h2><p class="sub">Escribe tu colonia o zona y te confirmamos si llegamos.</p>
+  <div class="card" style="max-width:520px">
+    <input id="zona" placeholder="Tu colonia o zona" aria-label="Zona">
+    <p id="cob" class="sub" style="margin:12px 0 0"></p>
+  </div>
+</div></section>
+
+<section id="contacto"><div class="wrap">
+  <h2>Contacto</h2><p class="sub">Déjanos tus datos y te llamamos.</p>
+  <form id="f">
+    <input name="nombre" placeholder="Nombre" required>
+    <input name="tel" type="tel" placeholder="Teléfono / WhatsApp" required>
+    <select name="plan"><option>Hogar</option><option>Familia</option><option>Negocio</option></select>
+    <textarea name="nota" rows="3" placeholder="Dirección o comentarios"></textarea>
+    <button class="btn" type="submit">Enviar por WhatsApp</button>
+    <div id="msg"></div>
+  </form>
+</div></section>
+</main>
+
+<footer><div class="wrap">© <span id="y"></span> Redcien · Todos los derechos reservados</div></footer>
+
+<script>
+document.getElementById('y').textContent=new Date().getFullYear();
+// Número de WhatsApp con código de país, sin +. CAMBIAR.
+var WA='520000000000';
+document.querySelectorAll('[data-plan]').forEach(function(a){a.addEventListener('click',function(){document.querySelector('[name=plan]').value=a.dataset.plan})});
+document.getElementById('zona').addEventListener('input',function(e){
+  document.getElementById('cob').textContent=e.target.value.trim()?'Gracias, validaremos tu zona al contactarte.':''});
+document.getElementById('f').addEventListener('submit',function(e){
+  e.preventDefault();var d=new FormData(e.target);
+  var t='Hola, quiero el plan '+d.get('plan')+'. Soy '+d.get('nombre')+', tel '+d.get('tel')+'. '+(d.get('nota')||'');
+  window.open('https://wa.me/'+WA+'?text='+encodeURIComponent(t),'_blank');
+  document.getElementById('msg').textContent='Abriendo WhatsApp…';
+});
+</script>
+</body>
+</html>
