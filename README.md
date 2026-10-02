@@ -1,12 +1,12 @@
-# Redcien – sitio web
+# RedCien – página de internet (Ciénaga, Magdalena)
 
-Página estática (`site/index.html`) con secciones: inicio, planes, cobertura y contacto.
+`site/index.html`: página única (planes, servicio, formulario de solicitud, preguntas).
 
-## Pendientes
-- Poner el número real de WhatsApp (`WA` en `site/index.html`) y los precios reales.
-- Logo, colores y textos definitivos.
+## Dependencias en el VPS (no están en el repo)
+- `planes.json` en la raíz del sitio (lista de planes: nombre, mb, precio, etiqueta, incluye).
+- Carpeta `img/` (logo-redcien.webp, favicon-redcien.png, hero-familia.jpg, momentos-*.jpg).
+- API `POST /api/internet/solicitud` (recibe el formulario).
 
-## Desplegar en el VPS
-En el VPS (una sola vez): `git clone https://github.com/karkopMaster/casa && cd casa`,
-y configurar el servidor web con `root /var/www/redcien;` y SSL.
-Cada actualización: `sudo ./deploy/deploy.sh` (usa `BRANCH=...` si no es `main`).
+## Desplegar
+En el VPS: `WEBROOT=/ruta/del/sitio BRANCH=<rama> ./deploy/deploy.sh`
+Solo reemplaza `index.html` y deja una copia `.bak` con fecha.
