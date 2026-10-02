@@ -6,7 +6,8 @@
 <link rel="canonical" href="https://redcien.co/">
 <link rel="icon" type="image/png" href="/img/favicon-redcien.png?v=2"><meta name="theme-color" content="#d71920">
 <meta property="og:type" content="website"><meta property="og:title" content="RedCien · Internet hogar en Ciénaga, Magdalena"><meta property="og:description" content="Planes de internet de 50 y 100 Megas en Ciénaga, Magdalena. Solicita tu instalación o visita técnica en línea."><meta property="og:image" content="https://redcien.co/logo.jpg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"InternetServiceProvider","name":"RedCien","url":"https://redcien.co/","logo":"https://redcien.co/logo.jpg","telephone":"+573028689027","areaServed":{"@type":"City","name":"Ciénaga","containedInPlace":{"@type":"AdministrativeArea","name":"Magdalena"}},"makesOffer":[{"@type":"Offer","name":"Internet 50 Megas","price":"50000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 50 Megas + TV","price":"60000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 100 Megas","price":"80000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 100 Megas + TV","price":"85000","priceCurrency":"COP"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"InternetServiceProvider","name":"RedCien","url":"https://redcien.co/","logo":"https://redcien.co/logo.jpg","telephone":"+573028689027","email":"isanetdecolombiasas@gmail.com","address":{"@type":"PostalAddress","addressLocality":"Ciénaga","addressRegion":"Magdalena","addressCountry":"CO"},"areaServed":{"@type":"City","name":"Ciénaga","containedInPlace":{"@type":"AdministrativeArea","name":"Magdalena"}},"makesOffer":[{"@type":"Offer","name":"Internet 50 Megas","price":"50000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 50 Megas + TV","price":"60000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 100 Megas","price":"80000","priceCurrency":"COP"},{"@type":"Offer","name":"Internet 100 Megas + TV","price":"85000","priceCurrency":"COP"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"¿Tienen cobertura en mi zona?","acceptedAnswer":{"@type":"Answer","text":"Indícanos tu dirección en el formulario y lo confirmamos. También puedes pedir una visita técnica para revisarlo."}},{"@type":"Question","name":"¿Pueden hacerme un plan pyme con las Megas que necesito?","acceptedAnswer":{"@type":"Answer","text":"Sí. Los planes pyme se arman según la velocidad que requiera tu negocio."}},{"@type":"Question","name":"¿Qué significa velocidad simétrica?","acceptedAnswer":{"@type":"Answer","text":"Que tu velocidad de subida es igual a la de bajada."}}]}</script>
 <style>
 :root{--bg:#fff6f6;--card:#fff;--txt:#2a1215;--mut:#7a5559;--line:#f1d7d9;--p:#d71920;--p2:#a30f15;--g:#16a34a;--rad:18px}
 @media(prefers-color-scheme:dark){:root{--bg:#160a0c;--card:#221114;--txt:#fdeeee;--mut:#c9a3a6;--line:#44222a;--p:#ff4d54;--p2:#e32a32}}
@@ -72,9 +73,15 @@ footer{padding:30px 0 90px;color:var(--mut);font-size:14px;border-top:1px solid 
 .heroL .hero-img:before{background:color-mix(in srgb,var(--p) 16%,transparent)}
 .heroL .hero-img img{border:4px solid var(--card);box-shadow:0 24px 54px color-mix(in srgb,var(--p) 26%,transparent)}
 .brand img.logoW{width:auto;height:62px;border-radius:0;box-shadow:none}@media(max-width:700px){.brand img.logoW{height:50px}}
+.pyme .box{max-width:none;margin:26px 0 0;display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.map{border:0;width:100%;height:380px;border-radius:var(--rad);margin-top:24px}
+.legal .card{margin-top:16px}.legal ul{color:var(--mut);padding-left:20px;margin:8px 0}.legal li{margin:4px 0}
+.alerta{border-color:var(--p);background:color-mix(in srgb,var(--p) 8%,var(--card))}
+.alerta b{color:var(--p)}.legal a,.fcontacto a{color:var(--p);font-weight:600}
+.fcontacto{display:flex;flex-direction:column;gap:4px}
 </style></head><body>
 <header><div class="wrap"><a class="brand" href="#inicio" aria-label="RedCien, inicio"><img class="logoW" src="/img/logo-redcien.webp?v=2" alt="RedCien 100, internet" width="300" height="159"></a>
-<nav><a href="#planes">Planes</a><a href="#servicio">Servicio</a><a href="#preguntas">Preguntas</a><a class="btn" href="#solicitar">Solicitar</a></nav></div></header>
+<nav><a href="#planes">Planes</a><a href="#pyme">Pyme</a><a href="#cobertura">Cobertura</a><a href="#preguntas">Preguntas</a><a href="#legal">Legal</a><a class="btn" href="#solicitar">Solicitar</a></nav></div></header>
 <main id="inicio">
 <div class="hero heroL"><div class="wrap heroG"><div class="hero-txt">
 <div class="eyebrow" style="margin-bottom:14px">Internet para tu hogar</div>
@@ -130,14 +137,55 @@ footer{padding:30px 0 90px;color:var(--mut);font-size:14px;border-top:1px solid 
 <div class="er" id="er" role="alert"></div>
 </div></div></section>
 
-<section id="preguntas"><div class="wrap" style="max-width:820px"><div class="eyebrow">Preguntas</div><h2>Preguntas frecuentes</h2><div style="margin-top:22px">
+<section id="pyme" class="alt pyme"><div class="wrap"><div class="eyebrow">Pyme y empresas</div><h2>Internet a la medida de tu negocio</h2>
+<p class="sub">Cada negocio es distinto. Definimos contigo las Megas que necesitas, sin pagar de más ni quedarte corto.</p>
+<div class="box">
+<div class="card"><div class="ico">📶</div><h3>Las Megas que requieras</h3><p>Planes pyme de la velocidad que tu negocio necesite, con la posibilidad de subirla cuando crezcas.</p></div>
+<div class="card"><div class="ico">🏪</div><h3>Para comercios y oficinas</h3><p>Tiendas, restaurantes, consultorios, colegios y oficinas con varios equipos conectados.</p></div>
+<div class="card"><div class="ico">🤝</div><h3>Soporte prioritario</h3><p>Atención directa por WhatsApp para resolver rápido cualquier falla.</p></div>
+</div>
+<div class="acc" style="margin-top:24px">
+<a class="btn" target="_blank" rel="noopener" href="https://wa.me/573028689027?text=Hola%2C%20quiero%20cotizar%20un%20plan%20pyme%20de%20internet%20con%20RedCien">Cotizar por WhatsApp</a>
+<a class="btn sec" href="mailto:isanetdecolombiasas@gmail.com?subject=Cotizaci%C3%B3n%20plan%20pyme%20RedCien">Escribir por correo</a></div>
+</div></section>
+
+<section id="cobertura"><div class="wrap"><div class="eyebrow">Cobertura</div><h2>Internet en Ciénaga, Magdalena</h2>
+<p class="sub">Llevamos el servicio a hogares y negocios de Ciénaga. La instalación depende de la factibilidad técnica en tu dirección: déjanos tus datos y te lo confirmamos.</p>
+<iframe class="map" title="Mapa de Ciénaga, Magdalena" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=Ci%C3%A9naga,Magdalena,Colombia&output=embed"></iframe>
+</div></section>
+
+<section id="preguntas" class="alt"><div class="wrap" style="max-width:820px"><div class="eyebrow">Preguntas</div><h2>Preguntas frecuentes</h2><div style="margin-top:22px">
 <details><summary>¿Tienen cobertura en mi zona?</summary><p>Indícanos tu dirección en el formulario y lo confirmamos. También puedes pedir una visita técnica para revisarlo.</p></details>
 <details><summary>¿Cuánto cuesta la instalación?</summary><p>Te lo confirmamos por WhatsApp cuando revisemos tu dirección y el plan que elegiste.</p></details>
 <details><summary>¿Cómo pago mi factura?</summary><p>Te enviamos la factura y los datos de pago por WhatsApp cada mes.</p></details>
 <details><summary>¿Qué significa velocidad simétrica?</summary><p>Que tu velocidad de subida es igual a la de bajada, ideal para videollamadas, teletrabajo y subir archivos.</p></details>
+<details><summary>¿Pueden hacerme un plan pyme con las Megas que necesito?</summary><p>Sí. Los planes pyme se arman según la velocidad que requiera tu negocio. Escríbenos por WhatsApp y te cotizamos.</p></details>
+<details><summary>¿Cuánto tarda la instalación?</summary><p>Una vez confirmada la cobertura, coordinamos contigo la fecha y la hora de la visita técnica.</p></details>
 </div></div></section>
+
+<section id="legal" class="legal"><div class="wrap"><div class="eyebrow">Legal</div><h2>Protección de menores y uso responsable</h2>
+<div class="card alerta"><p><b>La pornografía infantil es un delito.</b> Está prohibida y se sanciona penalmente en Colombia. Si ves o conoces contenido de explotación sexual de niños, niñas y adolescentes, denúncialo de inmediato.</p></div>
+<div class="card"><h3>Compromisos de RedCien como proveedor de Internet</h3>
+<ul>
+<li>No alojamos, ni permitimos usar nuestra red para alojar o difundir, material de pornografía con menores de edad.</li>
+<li>Denunciamos ante las autoridades competentes los hechos de este tipo que lleguen a nuestro conocimiento.</li>
+<li>Colaboramos con las autoridades en las investigaciones que correspondan, según la ley.</li>
+<li>Informamos a nuestros usuarios sobre los riesgos del acceso de menores a contenidos para adultos y sobre las herramientas de control parental disponibles.</li>
+</ul></div>
+<div class="card"><h3>Contenido para adultos</h3>
+<p>Las páginas y contenidos para adultos son solo para mayores de edad. Madres, padres y cuidadores son los primeros responsables de acompañar el uso de Internet de los menores. Te recomendamos activar el control parental en los dispositivos y en el router, y puedes pedirnos orientación por WhatsApp.</p></div>
+<div class="card"><h3>Dónde denunciar</h3>
+<ul>
+<li><a href="https://teprotejo.org/" target="_blank" rel="noopener">Te Protejo</a>: línea de denuncia en línea.</li>
+<li><a href="https://caivirtual.policia.gov.co/" target="_blank" rel="noopener">CAI Virtual de la Policía Nacional</a>.</li>
+<li>Línea 141 del ICBF y línea 122 de la Fiscalía General de la Nación.</li>
+<li><a href="https://www.crcom.gov.co/es/usuarios" target="_blank" rel="noopener">Derechos de los usuarios (CRC)</a>.</li>
+</ul></div>
+<p class="sub" style="margin-top:16px;font-size:14px">Marco legal de referencia: Ley 679 de 2001, Ley 1336 de 2009 y normas de la CRC y el MinTIC.</p>
+</div></section>
 </main>
-<footer><div class="wrap" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><img src="/img/logo-redcien.webp?v=2" alt="RedCien" width="300" height="159" style="height:56px;width:auto"><span>© <span id="anio"></span> · Servicio de internet</span></div></footer>
+<footer><div class="wrap" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><img src="/img/logo-redcien.webp?v=2" alt="RedCien" width="300" height="159" style="height:56px;width:auto"><span>© <span id="anio"></span> RedCien · Ciénaga, Magdalena</span></div>
+<div class="fcontacto"><span>WhatsApp: <a href="https://wa.me/573028689027">302 868 9027</a></span><span>Correo: <a href="mailto:isanetdecolombiasas@gmail.com">isanetdecolombiasas@gmail.com</a></span><span><a href="#legal">Protección de menores y legal</a></span></div></div></footer>
 <a class="btn wa fwa" id="wa" target="_blank" rel="noopener" href="https://wa.me/573028689027?text=Hola%2C%20quiero%20informaci%C3%B3n%20sobre%20el%20internet%20de%20RedCien">💬 WhatsApp</a>
 <script>
 (function(){var $=function(i){return document.getElementById(i)};$("anio").textContent=new Date().getFullYear();
