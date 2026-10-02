@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ejecutar EN EL VPS. Publica index.html, blog/, legal/, sitemap.xml y robots.txt.
 # No borra nada del webroot (img/, planes.json, logo.jpg, etc. se conservan).
-# Antes de reemplazar un archivo existente guarda una copia .bak.<fecha>.
+# Antes de reemplazar un archivo existente guarda una copia en /home/ubuntu/backups-redcien/<fecha>/ (fuera de la carpeta pública).
 # Uso: WEBROOT=/ruta/real/del/sitio ./deploy/deploy.sh
 set -euo pipefail
 : "${WEBROOT:?Define WEBROOT con la carpeta que sirve el sitio}"
@@ -9,8 +9,9 @@ BRANCH="${BRANCH:-main}"
 cd "$(dirname "$0")/.."
 git fetch origin "$BRANCH" && git checkout "$BRANCH" && git pull --ff-only origin "$BRANCH"
 TS=$(date +%Y%m%d-%H%M%S)
-put(){ # origen destino
-  [ -f "$2" ] && cp -a "$2" "$2.bak.$TS"
+BK="${BACKUP_DIR:-/home/ubuntu/backups-redcien}/$TS"
+put(){ # origen destino; la copia de seguridad va FUERA de la carpeta pública
+  if [ -f "$2" ]; then mkdir -p "$BK/$(dirname "${2#$WEBROOT/}")"; cp -a "$2" "$BK/${2#$WEBROOT/}"; fi
   install -m 644 "$1" "$2"
 }
 PEND=$(grep -l 'class="pend"' site/legal/*.html 2>/dev/null || true)
@@ -25,4 +26,4 @@ put site/robots.txt "$WEBROOT/robots.txt"
 for f in site/blog/*.html; do put "$f" "$WEBROOT/blog/$(basename "$f")"; done
 for f in site/legal/*.html; do put "$f" "$WEBROOT/legal/$(basename "$f")"; done
 chown -R ubuntu:ubuntu "$WEBROOT/legal" "$WEBROOT/blog" "$WEBROOT/index.html" "$WEBROOT/sitemap.xml" "$WEBROOT/robots.txt" 2>/dev/null || true
-echo "Publicado en $WEBROOT (copias de seguridad: *.bak.$TS)"
+echo "Publicado en $WEBROOT (copias de seguridad en $BK)"
