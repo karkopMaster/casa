@@ -79,6 +79,10 @@ footer{padding:30px 0 90px;color:var(--mut);font-size:14px;border-top:1px solid 
 .alerta{border-color:var(--p);background:color-mix(in srgb,var(--p) 8%,var(--card))}
 .alerta b{color:var(--p)}.legal a,.fcontacto a{color:var(--p);font-weight:600}
 .fcontacto{display:flex;flex-direction:column;gap:4px}
+.entes{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));margin-top:24px}
+.entes a{display:block;background:var(--card);border:1px solid var(--line);border-radius:var(--rad);padding:18px;color:var(--txt);text-decoration:none;transition:.15s}
+.entes a:hover{border-color:var(--p);transform:translateY(-2px)}.entes b{display:block;color:var(--p)}.entes small{color:var(--mut)}
+.denuncia{text-align:center;font-weight:800;color:var(--p);margin:18px 0 0;letter-spacing:.02em}
 </style></head><body>
 <header><div class="wrap"><a class="brand" href="#inicio" aria-label="RedCien, inicio"><img class="logoW" src="/img/logo-redcien.webp?v=2" alt="RedCien 100, internet" width="300" height="159"></a>
 <nav><a href="#planes">Planes</a><a href="#pyme">Pyme</a><a href="#cobertura">Cobertura</a><a href="#preguntas">Preguntas</a><a href="#legal">Legal</a><a class="btn" href="#solicitar">Solicitar</a></nav></div></header>
@@ -183,6 +187,18 @@ footer{padding:30px 0 90px;color:var(--mut);font-size:14px;border-top:1px solid 
 </ul></div>
 <p class="sub" style="margin-top:16px;font-size:14px">Marco legal de referencia: Ley 679 de 2001, Ley 1336 de 2009 y normas de la CRC y el MinTIC.</p>
 </div></section>
+<section id="entes" class="alt"><div class="wrap"><div class="eyebrow">Entes regulatorios</div><h2>Conoce tus derechos y a quién acudir</h2>
+<p class="sub">Información oficial sobre las condiciones del servicio, tus derechos como usuario y los canales de denuncia.</p>
+<p class="denuncia">LA PORNOGRAFÍA INFANTIL ES UN DELITO. DENUNCIA EN LAS LÍNEAS DE ATENCIÓN.</p>
+<div class="entes">
+<a href="https://www.mintic.gov.co/" target="_blank" rel="noopener"><b>MinTIC</b><small>Ministerio de Tecnologías de la Información y las Comunicaciones</small></a>
+<a href="https://www.crcom.gov.co/es/usuarios" target="_blank" rel="noopener"><b>CRC</b><small>Comisión de Regulación de Comunicaciones: derechos de los usuarios</small></a>
+<a href="https://www.sic.gov.co/" target="_blank" rel="noopener"><b>SIC</b><small>Superintendencia de Industria y Comercio</small></a>
+<a href="https://teprotejo.org/" target="_blank" rel="noopener"><b>Te Protejo</b><small>Denuncia en línea de contenido contra menores</small></a>
+<a href="https://caivirtual.policia.gov.co/" target="_blank" rel="noopener"><b>Policía Nacional</b><small>CAI Virtual</small></a>
+<a href="https://www.fiscalia.gov.co/" target="_blank" rel="noopener"><b>Fiscalía</b><small>Línea 122</small></a>
+<a href="https://www.icbf.gov.co/" target="_blank" rel="noopener"><b>ICBF</b><small>Línea 141</small></a>
+</div></div></section>
 </main>
 <footer><div class="wrap" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><img src="/img/logo-redcien.webp?v=2" alt="RedCien" width="300" height="159" style="height:56px;width:auto"><span>© <span id="anio"></span> RedCien · Ciénaga, Magdalena</span></div>
 <div class="fcontacto"><span>WhatsApp: <a href="https://wa.me/573028689027">302 868 9027</a></span><span>Correo: <a href="mailto:isanetdecolombiasas@gmail.com">isanetdecolombiasas@gmail.com</a></span><span><a href="#legal">Protección de menores y legal</a></span></div></div></footer>
