@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   var OCULTAR = ["SUSPENDIDOS"];
-  var CLIC = { "MOROSOS": "" }; // dirección fija (p. ej. "/servidores/morosos"); si queda vacía, se busca en el menú lateral un enlace "moroso"
+  var CLIC = { "MOROSOS": "/auditoria/morosos" }; // dirección fija (p. ej. "/servidores/morosos"); si queda vacía, se busca en el menú lateral un enlace "moroso"
 
   function rutaMorosos() {
     if (CLIC["MOROSOS"]) return CLIC["MOROSOS"];
