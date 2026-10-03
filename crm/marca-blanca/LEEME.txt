@@ -1,0 +1,7 @@
+NO APLICAR todavía (aplicar.py / npm run build del frontend).
+
+El frontend desplegado (backend/public/assets/index-*.js, app.html, index.html, manifest.webmanifest)
+NO sale de frontend/src: la página /registro/:token y otras públicas existen solo compiladas.
+Recompilar desde frontend/src las eliminaría.
+
+Camino seguro: parchear lo desplegado (backend/public) o recuperar el código fuente original primero.
