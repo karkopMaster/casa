@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Descarga la app</title><meta name="theme-color" content="#16a34a">
+<meta name="robots" content="noindex">
+<style>
+:root{--p:#16a34a;--p2:#15803d;--pl:#dcfce7;--bg:#f6faf7;--txt:#0f1f14;--mut:#5b6b60;--line:#e3ece6}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:grid;place-items:center;padding:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 10px 40px rgba(15,31,20,.08);max-width:440px;width:100%;padding:30px 24px;text-align:center}
+.logo{min-height:84px;display:grid;place-items:center;margin-bottom:6px}.logo img{max-height:96px;max-width:240px;object-fit:contain}
+.mono{display:grid;place-items:center;width:78px;height:78px;border-radius:22px;background:var(--p);color:#fff;font-size:30px;font-weight:800}
+h1{font-size:23px;margin:10px 0 4px}.sub{color:var(--mut);margin-bottom:20px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:16px;font:inherit;font-weight:700;font-size:17px;text-decoration:none;cursor:pointer;background:var(--p);color:#fff}
+.btn.o{background:transparent;color:var(--p2);border:1.5px solid var(--p);margin-top:12px;font-size:15px;padding:13px}
+.pasos{text-align:left;margin:22px 0 4px;color:var(--mut);font-size:14.5px;padding-left:4px;list-style:none;counter-reset:n}
+.pasos li{counter-increment:n;padding:6px 0 6px 34px;position:relative}.pasos li:before{content:counter(n);position:absolute;left:0;top:5px;width:24px;height:24px;border-radius:50%;background:var(--pl);color:var(--p2);font-weight:800;font-size:13px;display:grid;place-items:center}
+.nota{margin-top:16px;background:var(--pl);border-radius:14px;padding:12px 14px;font-size:14px;color:var(--p2);text-align:left}
+.ios,.oculto{display:none}.es-ios .ios{display:block}.es-ios .andr{display:none}
+.pie{margin-top:18px;font-size:12.5px;color:var(--mut)}
+</style></head><body>
+<main class="card" id="c">
+  <div class="logo" id="logo"><div class="mono" id="mono">APP</div></div>
+  <h1 id="nombre">App para clientes</h1>
+  <p class="sub">Consulta tu plan, tus facturas y paga desde tu celular.</p>
+
+  <div class="andr">
+    <a class="btn" id="apk" href="/descargar-app-cliente.apk">Instalar app</a>
+    <ol class="pasos">
+      <li>Toca <b>Instalar app</b> y espera a que termine la descarga.</li>
+      <li>Abre el archivo descargado. Si Android lo pide, permite <b>instalar apps desconocidas</b> desde tu navegador.</li>
+      <li>Abre la app e ingresa con tu documento: te enviamos un código por WhatsApp.</li>
+    </ol>
+  </div>
+  <div class="ios">
+    <div class="nota"><b>iPhone:</b> abre el portal en Safari, toca el botón <b>Compartir</b> y elige <b>Agregar a pantalla de inicio</b>.</div>
+  </div>
+  <a class="btn o" id="portal" href="/cliente/">Usar sin instalar (abrir en el navegador)</a>
+  <p class="pie" id="pie"></p>
+</main>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var h=location.hostname.toLowerCase().replace(/^www\./,""), BASE=".148-113-203-154.sslip.io";
+  /* En el dominio propio de la empresa el APK se descarga desde su dirección interna: <empresa>.148-113-203-154.sslip.io */
+  if(h.slice(-BASE.length)!==BASE && h.indexOf(".")>0){var slug=h.split(".")[0];$("apk").href="https://"+slug+BASE+"/descargar-app-cliente.apk"}
+  var ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod/i.test(ua))document.getElementById("c").classList.add("es-ios");
+  else if(!/Android/i.test(ua)){$("pie").textContent="Para instalar la app, abre esta página desde tu celular Android."}
+  fetch("/api/public/empresa",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
+    if(!d||!d.nombre)return;
+    $("nombre").textContent=d.nombre;document.title="Descarga la app de "+d.nombre;
+    if(d.logoUrl){var im=new Image();im.alt=d.nombre;im.onload=function(){$("logo").innerHTML="";$("logo").appendChild(im)};im.src=d.logoUrl}
+    else $("mono").textContent=d.nombre.split(/\s+/).map(function(x){return x[0]}).join("").slice(0,2).toUpperCase();
+  }).catch(function(){});
+})();
+</script></body></html>
