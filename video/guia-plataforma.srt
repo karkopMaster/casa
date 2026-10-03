@@ -1,0 +1,77 @@
+1
+00:00:00,000 --> 00:00:07,800
+Bienvenido. En este video vemos las funciones principales de la
+plataforma: clientes, contratos, facturación, cobranza, red y
+atención.
+
+2
+00:00:08,000 --> 00:00:15,800
+Al iniciar sesión llegas al Dashboard, con las cifras clave. La
+tarjeta de morosos muestra los clientes bloqueados en el Mikrotik, y
+al hacer clic te lleva a la pantalla de morosos.
+
+3
+00:00:16,000 --> 00:00:23,800
+En Clientes está la ficha completa: datos, contratos y facturas.
+Puedes enviar un enlace de registro para que el propio cliente llene
+su información.
+
+4
+00:00:24,000 --> 00:00:31,800
+Cada contrato define el plan, el tipo de conexión y el servidor. El
+contrato se puede firmar de forma digital desde un enlace que recibe
+el cliente.
+
+5
+00:00:32,000 --> 00:00:39,800
+En Facturas se generan y se consultan las facturas, se registran los
+pagos y las promesas de pago, y se emiten notas crédito.
+
+6
+00:00:40,000 --> 00:00:47,800
+El sistema corta automáticamente cada día a las ocho de la mañana a
+quienes no pagaron, y se puede revisar y corregir la lista de morosos
+del router.
+
+7
+00:00:48,000 --> 00:00:55,800
+En Servidores administras los Mikrotik y las OLT. La plataforma
+sincroniza con los routers cada hora y avisa si alguno deja de
+responder.
+
+8
+00:00:56,000 --> 00:01:03,800
+Atención reúne los tickets, la ruta del técnico y las solicitudes que
+llegan desde la página web.
+
+9
+00:01:04,000 --> 00:01:11,800
+El CRM ayuda a gestionar la cartera, segmentar clientes con etiquetas
+y enviar avisos con plantillas por WhatsApp.
+
+10
+00:01:12,000 --> 00:01:19,800
+La parte administrativa incluye contabilidad, compras, proveedores,
+inventario, bancos y nómina.
+
+11
+00:01:20,000 --> 00:01:27,800
+Auditoría sirve para verificar que los datos coincidan, por ejemplo
+entre los morosos del router y las facturas.
+
+12
+00:01:28,000 --> 00:01:35,800
+En Configuración de empresa defines tus datos, el logo y el fondo, que
+aparecen en el panel, en las facturas y en los enlaces que recibe el
+cliente.
+
+13
+00:01:36,000 --> 00:01:43,800
+Los clientes no necesitan usuario: reciben un enlace para registrarse,
+firmar el contrato, consultar su saldo o firmar un radicado.
+
+14
+00:01:44,000 --> 00:01:51,800
+Para terminar: revisa cada día los pendientes y los morosos, mantén la
+red sincronizada y haz respaldos con frecuencia. Gracias por ver este
+video.
