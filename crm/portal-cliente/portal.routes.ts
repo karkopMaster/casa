@@ -151,6 +151,13 @@ router.get("/cuenta", async (req, res) => {
     if (!cli) return res.status(401).json({ error: "Sesión vencida." });
     const cfg: any = await obtenerConfigTenant((prisma as any).empresaConfig, ubic.tenant.id).catch(() => null);
     const medios: any[] = await (prisma as any).medioPagoDigital.findMany({ where: { activo: true }, orderBy: { createdAt: "asc" } }).catch(() => []);
+    // Avisos activos del CRM = promociones y noticias del portal. PORTAL_AVISOS=0 los desactiva.
+    const avisos: any[] =
+      process.env.PORTAL_AVISOS === "0"
+        ? []
+        : await (prisma as any).aviso
+            .findMany({ where: { activo: true }, orderBy: { fechaPublicacion: "desc" }, take: 10, select: { titulo: true, mensaje: true, fechaPublicacion: true } })
+            .catch(() => []);
 
     const contrato = cli.contratos.find((c: any) => c.estado === "HABILITADO") ?? cli.contratos[0] ?? null;
     const plan = contrato?.plan ?? cli.plan ?? null;
@@ -169,6 +176,7 @@ router.get("/cuenta", async (req, res) => {
       saldo,
       facturas: facturas.filter((f: any) => f.estado !== "ANULADA"),
       medios: medios.map((m) => ({ n: String(m.etiqueta?.trim() || "Llave"), v: String(m.llave ?? "") })),
+      avisos: avisos.map((a) => ({ titulo: String(a.titulo ?? ""), mensaje: String(a.mensaje ?? ""), fecha: a.fechaPublicacion })),
     });
   });
 });

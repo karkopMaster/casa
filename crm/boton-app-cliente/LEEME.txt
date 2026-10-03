@@ -1,0 +1,10 @@
+Botón "Enviar app por WhatsApp" en la ficha del cliente (/clientes/<id>)
+
+Instalar (VPS) - requiere el portal del cliente ya instalado:
+  cd /tmp/casa && git pull origin claude/fervent-cori-cfc5h8
+  bash crm/boton-app-cliente/instalar-boton-app.sh
+  cd /home/ubuntu/isp-crm/backend
+  sudo -u ubuntu npx tsc -p tsconfig.json --noEmit
+  sudo -u ubuntu cp -a dist dist.pre-botonapp
+  sudo -u ubuntu npm run build && sudo -u ubuntu pm2 restart isp-crm-api
+Deshacer el botón:  bash crm/boton-app-cliente/desinstalar-boton-app.sh
