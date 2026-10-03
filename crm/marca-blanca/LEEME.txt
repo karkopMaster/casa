@@ -1,7 +1,11 @@
-NO APLICAR todavía (aplicar.py / npm run build del frontend).
+Marca blanca por empresa - camino seguro (sin recompilar el frontend)
 
-El frontend desplegado (backend/public/assets/index-*.js, app.html, index.html, manifest.webmanifest)
-NO sale de frontend/src: la página /registro/:token y otras públicas existen solo compiladas.
-Recompilar desde frontend/src las eliminaría.
+NO usar aplicar.py ni recompilar frontend/src: el frontend desplegado no sale de esa carpeta.
 
-Camino seguro: parchear lo desplegado (backend/public) o recuperar el código fuente original primero.
+Usar:  bash crm/marca-blanca/instalar-marca.sh     (enlaza marca.js en los HTML desplegados)
+Quitar: bash crm/marca-blanca/desinstalar-marca.sh
+
+marca.js:
+ - páginas con enlace (/registro, /asignaciones, /radicados, /pago): logo de la empresa dueña del token
+ - login y panel: logo de la empresa del dominio (reemplaza "ISP / ISP CRM" del menú)
+ - ícono de la pestaña y apple-touch-icon = logo de la empresa
