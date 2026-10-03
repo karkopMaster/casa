@@ -18,21 +18,15 @@ for a in (A_IMPORT, A_PCT, A_CLI):
     if s.count(a) != 1: sys.exit("ABORTO: no encontré (o hay más de una vez) esta línea:\n" + a)
 
 BLOQUE = '''
-  // Morosos/Suspendidos reales según los Mikrotik (solo lectura). Si algún router no responde, se usan los datos de la base de datos.
+  // Morosos = Suspendidos = clientes bloqueados en el Mikrotik (solo lectura). Si algún router no responde, se usan los datos de la base de datos.
   const estadoRouter = await estadoRouters(where).catch(() => null);
   let morososFinal = clientesMorosos;
   let suspendidosFinal = clientesSuspendidos;
   let fuenteCortes: "mikrotik" | "base_de_datos" = "base_de_datos";
   if (estadoRouter && estadoRouter.completo) {
     suspendidosFinal = estadoRouter.cortadosClienteIds.length;
-    // Morosos = con factura vencida que TODAVÍA no están cortados en el router
-    morososFinal = await prisma.cliente.count({
-      where: {
-        ...where,
-        facturas: { some: { estado: { in: ["PENDIENTE", "VENCIDA"] }, fechaVencimiento: { lt: new Date() } } },
-        ...(estadoRouter.cortadosClienteIds.length > 0 ? { id: { notIn: estadoRouter.cortadosClienteIds } } : {}),
-      },
-    });
+    // Moroso y suspendido son lo mismo: cliente bloqueado en el router
+    morososFinal = suspendidosFinal;
     fuenteCortes = "mikrotik";
   }
 '''

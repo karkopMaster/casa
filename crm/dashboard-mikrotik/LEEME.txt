@@ -1,5 +1,8 @@
 Dashboard: Morosos y Suspendidos según el Mikrotik (solo lectura, no corta ni reconecta a nadie)
 
+Morosos = Suspendidos = clientes bloqueados en el router.
+Si YA aplicaste la versión anterior: sudo -u ubuntu python3 /tmp/casa/crm/dashboard-mikrotik/ajustar-morosos.py (dentro de backend), y luego tsc/build/restart.
+
 Aplicar (en el VPS):
   cd /tmp/casa && git pull origin claude/fervent-cori-cfc5h8
   cd /home/ubuntu/isp-crm/backend
