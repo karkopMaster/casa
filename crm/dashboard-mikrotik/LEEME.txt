@@ -18,3 +18,8 @@ Deshacer:
   sudo -u ubuntu rm src/services/dashboardMikrotik.ts
   sudo -u ubuntu rm -rf dist && sudo -u ubuntu mv dist.pre-dashboard-mikrotik dist
   sudo -u ubuntu pm2 restart isp-crm-api
+
+Quitar la tarjeta "Suspendidos" (queda "Morosos"):
+  bash /tmp/casa/crm/dashboard-mikrotik/instalar-tarjetas.sh      (recargar con Ctrl+Shift+R)
+Deshacer:
+  bash /tmp/casa/crm/dashboard-mikrotik/desinstalar-tarjetas.sh
