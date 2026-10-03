@@ -1,0 +1,17 @@
+Portal del cliente (app móvil) - marca blanca por empresa
+
+Instalar (VPS):
+  cd /tmp/casa && git pull origin claude/fervent-cori-cfc5h8
+  bash crm/portal-cliente/instalar-portal.sh
+  (agrega PORTAL_JWT_SECRET al .env si el script lo pide)
+  cd /home/ubuntu/isp-crm/backend
+  sudo -u ubuntu npx tsc -p tsconfig.json --noEmit        # debe terminar sin errores
+  sudo -u ubuntu cp -a dist dist.pre-portal
+  sudo -u ubuntu npm run build
+  sudo -u ubuntu pm2 restart isp-crm-api --update-env
+  Abrir:  https://<dominio-de-la-empresa>/cliente/
+
+Deshacer:
+  cp /home/ubuntu/backups/index.ts.pre-portal-<fecha> /home/ubuntu/isp-crm/backend/src/index.ts
+  rm /home/ubuntu/isp-crm/backend/src/routes/portal.routes.ts ; rm -rf /home/ubuntu/isp-crm/backend/public/cliente
+  cd /home/ubuntu/isp-crm/backend && rm -rf dist && mv dist.pre-portal dist && sudo -u ubuntu pm2 restart isp-crm-api
