@@ -1,0 +1,17 @@
+Dashboard: Morosos y Suspendidos según el Mikrotik (solo lectura, no corta ni reconecta a nadie)
+
+Aplicar (en el VPS):
+  cd /tmp/casa && git pull origin claude/fervent-cori-cfc5h8
+  cd /home/ubuntu/isp-crm/backend
+  sudo -u ubuntu python3 /tmp/casa/crm/dashboard-mikrotik/aplicar.py
+  sudo -u ubuntu npx tsc -p tsconfig.json --noEmit      # debe terminar sin errores
+  sudo -u ubuntu cp -a dist dist.pre-dashboard-mikrotik
+  sudo -u ubuntu npm run build
+  sudo -u ubuntu pm2 restart isp-crm-api
+
+Deshacer:
+  cd /home/ubuntu/isp-crm/backend
+  sudo -u ubuntu cp src/routes/dashboard.routes.ts.pre-mikrotik src/routes/dashboard.routes.ts
+  sudo -u ubuntu rm src/services/dashboardMikrotik.ts
+  sudo -u ubuntu rm -rf dist && sudo -u ubuntu mv dist.pre-dashboard-mikrotik dist
+  sudo -u ubuntu pm2 restart isp-crm-api
