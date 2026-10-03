@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Portal del cliente</title><meta name="theme-color" content="#16a34a">
+<style>
+:root{--p:#16a34a;--p2:#15803d;--pl:#dcfce7;--bg:#f6faf7;--card:#fff;--txt:#0f1f14;--mut:#5b6b60;--line:#e3ece6;--warn:#d97706;--bad:#dc2626}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+body{background:#e9eee9;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--txt)}
+#app{max-width:430px;min-height:100vh;margin:0 auto;background:var(--bg);position:relative;padding-bottom:96px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 0}
+.ib{width:38px;height:38px;border:0;background:transparent;display:grid;place-items:center;position:relative}
+.ib svg{width:24px;height:24px}.dot{position:absolute;top:6px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--p);border:2px solid var(--bg)}
+.hero{text-align:center;padding:0 20px 8px;background:radial-gradient(420px 220px at 50% 0,var(--pl),transparent)}
+.hero img{max-height:104px;max-width:240px;object-fit:contain}
+.mono{display:inline-grid;place-items:center;width:74px;height:74px;border-radius:20px;background:var(--p);color:#fff;font-size:30px;font-weight:800}
+.hello{padding:6px 20px 2px}.hello h1{font-size:21px}.hello p{color:var(--mut);font-size:14px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 14px rgba(15,31,20,.07);border:1px solid var(--line)}
+.estado{margin:14px 16px;padding:16px;display:grid;grid-template-columns:1fr 1px 1fr;gap:12px;align-items:center}
+.estado .sep{background:var(--line);height:48px}.estado small{color:var(--mut);font-size:12px;display:block}
+.estado b{font-size:17px}.ok{color:var(--p)}.mal{color:var(--bad)}.pend{color:var(--warn)}
+.plan{display:flex;gap:12px;align-items:center}.wifi{width:44px;height:44px;border-radius:50%;background:var(--p);display:grid;place-items:center}.wifi svg{width:26px;height:26px;stroke:#fff}
+h2{font-size:15px;margin:18px 20px 10px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 16px}
+.ac{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 4px 10px;text-align:center;font-size:11.5px;font-weight:700;line-height:1.2;box-shadow:0 2px 10px rgba(15,31,20,.05);color:var(--txt);text-decoration:none;display:block}
+.ac svg{display:block;margin:0 auto 6px;width:30px;height:30px;stroke:var(--p)}.ac span{display:block;font-weight:400;color:var(--mut);font-size:10.5px;margin-top:2px}
+.banner{margin:16px;border-radius:18px;padding:20px;color:#fff;background:linear-gradient(135deg,#0b3d20,var(--p2));min-height:120px}
+.banner b{display:block;font-size:19px;margin-bottom:4px}.banner p{opacity:.9;font-size:13.5px;margin-bottom:12px}
+.btn{display:inline-block;border:0;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;background:var(--p);color:#fff;text-decoration:none;cursor:pointer}
+.btn.w{background:#fff;color:var(--p2)}.btn.full{display:block;width:100%;text-align:center}.btn.wa{background:#25d366;color:#053b1b}.btn.o{background:transparent;color:var(--p2);border:1.5px solid var(--p)}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:8px 4px calc(8px + env(safe-area-inset-bottom));z-index:10}
+.nav a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--mut);text-decoration:none;font-weight:600}
+.nav a svg{width:23px;height:23px}.nav a.on{color:var(--p)}.nav a.on svg{stroke:var(--p)}
+.nav .pay{margin-top:-30px}.nav .pay i{width:58px;height:58px;border-radius:50%;background:var(--p);display:grid;place-items:center;box-shadow:0 6px 16px rgba(22,163,74,.45);border:4px solid var(--bg)}
+.nav .pay svg{stroke:#fff;width:26px;height:26px}
+.pg{padding:16px}.pg h1{font-size:22px;margin:6px 0 14px}.back{color:var(--p2);font-weight:700;text-decoration:none;display:inline-block;margin-bottom:6px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;gap:10px}.row+.row{border-top:1px solid var(--line)}
+.chip{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px}.c-ok{background:#dcfce7;color:#166534}.c-p{background:#fef3c7;color:#92400e}.c-m{background:#fee2e2;color:#991b1b}
+.mut{color:var(--mut);font-size:13px}.big{font-size:30px;font-weight:800}.sp>*+*{margin-top:12px}
+.medio{padding:14px 16px}.medio b{display:block}.medio code{background:var(--pl);padding:3px 8px;border-radius:8px;font-size:15px}
+.login{padding:30px 22px}.login input{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;font:inherit;margin:8px 0 12px}
+iframe{width:100%;border:0;border-radius:16px;height:300px}
+.demo{position:fixed;top:0;left:0;right:0;background:#111;color:#fff;font-size:11px;text-align:center;padding:3px;z-index:20}
+</style></head><body><div id="app"></div>
+<script>
+/* ===== CONFIGURACIÓN POR EMPRESA (se llena desde /api/public/empresa; los valores de abajo son de respaldo) ===== */
+var CFG = { nombre:"DuvanNET Soluciones", logoUrl:null, color:"#16a34a", whatsapp:"573000000000", horario:"Lun–Vie 8:00–12:00 y 2:00–5:00 · Sáb 9:00–2:00",
+  municipio:"Ciénaga, Magdalena", speedtestUrl:"https://fast.com",
+  medios:[{n:"Nequi",v:"300 000 0000"},{n:"Transferencia bancaria",v:"Cuenta de ahorros 000-000000-00"},{n:"Bre-B",v:"@llave"},{n:"Efectivo",v:"En nuestras oficinas"}] };
+/* ===== DATOS DEL CLIENTE (DEMO; se reemplazan por la API del CRM) ===== */
+var DEMO = { nombre:"Juan", nombreCompleto:"Juan Pérez", documento:"1.083.000.000", contrato:"C-0123", plan:"Fibra 50 Megas", velocidad:50, estadoServicio:"Activo", direccion:"Calle 10 # 5-20, Ciénaga",
+  corte:"Día 5 de cada mes", saldo:0, facturas:[{p:"Octubre 2026",m:50000,e:"PENDIENTE",v:"2026-10-05"},{p:"Septiembre 2026",m:50000,e:"PAGADA",v:"2026-09-05"},{p:"Agosto 2026",m:50000,e:"PAGADA",v:"2026-08-05"}],
+  promos:[{t:"Sube a 100 Megas",d:"Mejora tu plan y navega sin límites."},{t:"Refiere y gana",d:"Un mes con descuento por cada amigo que traigas."}] };
+var DEBE = function(c){return c.facturas.filter(function(f){return f.e!=="PAGADA"}).reduce(function(s,f){return s+f.m},0)};
+var $ = function(h){var d=document.createElement("div");d.innerHTML=h;return d};
+var money = function(n){return "$"+Number(n).toLocaleString("es-CO")};
+var I = {
+ menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+ bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21a2 2 0 0 0 4 0"/></svg>',
+ wifi:'<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="#fff"/></svg>',
+ inv:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg>',
+ card:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+ gauge:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 18a9 9 0 1 1 16 0M12 14l4-5"/><circle cx="12" cy="14" r="1.3"/></svg>',
+ head:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v5H4zM17 14h3v5h-3zM17 19c0 1.5-2 2-5 2"/></svg>',
+ router:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 16.5h.01M11 16.5h.01M8 13l-2-6M16 13l2-6"/></svg>',
+ mega:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3l12 5V6zM15 9a4 4 0 0 1 0 8M6 14l1 5h3"/></svg>',
+ pin:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+ wa:'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6zM9 8.5c0 3.5 3 6.5 6.5 6.5l1.2-1.4-2-1-1 .7a4 4 0 0 1-2-2l.7-1-1-2z"/></svg>',
+ home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+ doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg>',
+ usd:'<svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v18M16.5 7.5C15.5 6 14 5.5 12 5.5c-2.5 0-4 1.2-4 3 0 4.5 8.5 2 8.5 6.500 0 1.800-1.700 3-4.500 3-2 0-3.800-.8-4.500-2.500"/></svg>',
+ help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v5H4zM17 14h3v5h-3z"/></svg>',
+ user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>'
+};
+function logo(){return CFG.logoUrl?'<img src="'+CFG.logoUrl+'" alt="'+CFG.nombre+'">':'<div class="mono">'+CFG.nombre.split(/\s+/).map(function(x){return x[0]}).join("").slice(0,2).toUpperCase()+'</div><div style="font-weight:800;font-size:20px;margin-top:6px">'+CFG.nombre+'</div>'}
+function wa(txt){return "https://wa.me/"+CFG.whatsapp+"?text="+encodeURIComponent(txt)}
+function nav(on){var t=[["inicio","Inicio",I.home],["facturas","Facturas",I.doc],["pagar","Pagar",I.usd],["soporte","Soporte",I.help],["perfil","Perfil",I.user]];
+ return '<nav class="nav">'+t.map(function(x){return x[0]==="pagar"?'<a class="pay" href="#pagar"><i>'+x[2]+'</i>'+x[1]+'</a>':'<a href="#'+x[0]+'" class="'+(on===x[0]?"on":"")+'">'+x[2]+x[1]+'</a>'}).join("")+'</nav>'}
+function ac(h,ic,a,b){return '<a class="ac" href="'+h+'" '+(h.indexOf("http")===0?'target="_blank" rel="noopener"':"")+'>'+ic+a+(b?'<span>'+b+'</span>':'')+'</a>'}
+function pg(titulo,cuerpo,on){return '<div class="pg"><a class="back" href="#inicio">‹ Volver</a><h1>'+titulo+'</h1>'+cuerpo+'</div>'+nav(on||"")}
+var C = DEMO;
+var V = {
+ inicio:function(){var d=DEBE(C),ok=d===0;return '<div class="top"><button class="ib" aria-label="Menú">'+I.menu+'</button><button class="ib" aria-label="Avisos">'+I.bell+'<i class="dot"></i></button></div><div class="hero">'+logo()+'</div>'+
+  '<div class="hello"><h1>¡Hola, '+C.nombre+'!</h1><p>Bienvenido a '+CFG.nombre+'</p></div>'+
+  '<div class="card estado"><div class="plan"><div class="wifi">'+I.wifi.replace("<svg","<svg stroke=\"#fff\"")+'</div><div><small>Plan actual</small><b>'+C.plan+'</b><div class="ok" style="font-size:13px;font-weight:700">'+C.estadoServicio+'</div></div></div><div class="sep"></div><div><small>Estado de cuenta</small><b class="'+(ok?"ok":"pend")+'">'+(ok?"Al día ✓":"Saldo "+money(d))+'</b><small>'+(ok?"Facturas al día":"Pendiente de pago")+'</small></div></div>'+
+  '<h2>Accesos rápidos</h2><div class="grid">'+ac("#facturas",I.inv,"Mis Facturas")+ac("#pagar",I.card,"Realizar Pago")+ac("#velocidad",I.gauge,"Test de Velocidad")+ac("#soporte",I.head,"Soporte Técnico","Reportar falla")+ac("#plan",I.router,"Mi Plan","Ver detalles")+ac("#promos",I.mega,"Promociones","y noticias")+ac("#cobertura",I.pin,"Cobertura","y zonas")+ac(wa("Hola, soy "+C.nombreCompleto+" (contrato "+C.contrato+")."),I.wa,"WhatsApp","Escríbenos")+'</div>'+
+  '<div class="banner"><b>¡Navega sin límites!</b><p>Con la mejor velocidad y estabilidad.</p><a class="btn w" href="#promos">Conoce más ›</a></div>'+nav("inicio")},
+ facturas:function(){var d=DEBE(C);return pg("Mis facturas",'<div class="card" style="padding:16px;margin-bottom:14px"><span class="mut">Saldo pendiente</span><div class="big '+(d?"pend":"ok")+'">'+money(d)+'</div></div><div class="card">'+C.facturas.map(function(f){var c=f.e==="PAGADA"?"c-ok":f.e==="VENCIDA"?"c-m":"c-p";return '<div class="row"><div><b>'+f.p+'</b><div class="mut">Vence '+f.v+'</div></div><div style="text-align:right"><b>'+money(f.m)+'</b><div><span class="chip '+c+'">'+f.e.toLowerCase()+'</span></div></div></div>'}).join("")+'</div>',"facturas")},
+ pagar:function(){var d=DEBE(C);return pg("Realizar pago",'<div class="card" style="padding:16px;margin-bottom:14px"><span class="mut">Valor a pagar</span><div class="big">'+money(d)+'</div></div><div class="card sp">'+CFG.medios.map(function(m){return '<div class="medio"><b>'+m.n+'</b><code>'+m.v+'</code></div>'}).join("")+'</div><p class="mut" style="margin:14px 2px">Después de pagar, envía el comprobante para que quede registrado.</p><a class="btn wa full" target="_blank" rel="noopener" href="'+wa("Hola, soy "+C.nombreCompleto+" (contrato "+C.contrato+"). Envío mi comprobante de pago por "+money(d)+".")+'">Enviar comprobante por WhatsApp</a>',"pagar")},
+ soporte:function(){return pg("Soporte técnico",'<div class="card sp" style="padding:16px"><b>¿Sin internet o muy lento?</b><p class="mut">1. Apaga el router 30 segundos y vuelve a encenderlo.<br>2. Revisa que los cables estén bien conectados.<br>3. Si sigue igual, repórtalo.</p><a class="btn full" target="_blank" rel="noopener" href="'+wa("Hola, soy "+C.nombreCompleto+" (contrato "+C.contrato+", "+C.direccion+"). Quiero reportar una falla en mi servicio de internet.")+'">Reportar una falla</a></div><div class="card" style="padding:16px;margin-top:14px"><b>Horario de atención</b><p class="mut">'+CFG.horario+'</p></div>',"soporte")},
+ perfil:function(){return pg("Mi perfil",'<div class="card"><div class="row"><span class="mut">Nombre</span><b>'+C.nombreCompleto+'</b></div><div class="row"><span class="mut">Documento</span><b>'+C.documento+'</b></div><div class="row"><span class="mut">Contrato</span><b>'+C.contrato+'</b></div><div class="row"><span class="mut">Dirección</span><b style="text-align:right">'+C.direccion+'</b></div></div><p style="margin-top:16px"><a class="btn o full" href="#salir">Cerrar sesión</a></p>',"perfil")},
+ plan:function(){return pg("Mi plan",'<div class="card"><div class="row"><span class="mut">Plan</span><b>'+C.plan+'</b></div><div class="row"><span class="mut">Velocidad</span><b>'+C.velocidad+' Mbps simétricos</b></div><div class="row"><span class="mut">Estado</span><b class="ok">'+C.estadoServicio+'</b></div><div class="row"><span class="mut">Corte</span><b>'+C.corte+'</b></div></div>')},
+ velocidad:function(){return pg("Test de velocidad",'<p class="mut" style="margin-bottom:12px">Conéctate por WiFi cerca del router y cierra otras descargas para una medición más real.</p><a class="btn full" target="_blank" rel="noopener" href="'+CFG.speedtestUrl+'">Iniciar prueba</a>')},
+ promos:function(){return pg("Promociones y noticias",C.promos.map(function(p){return '<div class="card" style="padding:16px;margin-bottom:12px"><b>'+p.t+'</b><p class="mut">'+p.d+'</p></div>'}).join(""))},
+ cobertura:function(){return pg("Cobertura y zonas",'<p class="mut" style="margin-bottom:12px">Atendemos '+CFG.municipio+'. ¿Un familiar o amigo quiere el servicio?</p><iframe loading="lazy" title="Mapa" src="https://www.google.com/maps?q='+encodeURIComponent(CFG.municipio)+'&output=embed"></iframe><a class="btn wa full" style="margin-top:14px" target="_blank" rel="noopener" href="'+wa("Hola, quiero consultar cobertura en mi dirección.")+'">Consultar mi dirección</a>')}
+};
+function pintar(){var r=(location.hash||"#inicio").slice(1);if(r==="salir"){r="inicio"}var v=V[r]||V.inicio;document.getElementById("app").innerHTML=v();window.scrollTo(0,0)}
+function aplicarMarca(){document.documentElement.style.setProperty("--p",CFG.color);document.querySelector('meta[name=theme-color]').content=CFG.color;document.title=CFG.nombre}
+/* Marca real de la empresa si existe la API; si no, se queda el respaldo */
+fetch("/api/public/empresa",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){if(d&&d.nombre){CFG.nombre=d.nombre;CFG.logoUrl=d.logoUrl||null;aplicarMarca();pintar()}}).catch(function(){});
+window.addEventListener("hashchange",pintar);aplicarMarca();pintar();
+</script></body></html>
