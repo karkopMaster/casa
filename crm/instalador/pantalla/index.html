@@ -59,6 +59,7 @@ var TOKEN=null,PRE=null,CAP=null,TAB="ord",ORD=null,GEO=null;
 try{TOKEN=sessionStorage.getItem("inst_token")}catch(e){}
 function g(id){return document.getElementById(id)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function motivoError(r){var e=r&&r.d&&r.d.error;if(typeof e==="string")return e;var fe=e&&e.fieldErrors;if(fe){var t=[];Object.keys(fe).forEach(function(k){if(fe[k]&&fe[k].length)t.push(k+": "+fe[k][0])});if(t.length)return"Revisa estos datos → "+t.join(" · ")}return r&&r.status?"Error "+r.status:""}
 function guardar(t){TOKEN=t;try{if(t)sessionStorage.setItem("inst_token",t);else sessionStorage.removeItem("inst_token")}catch(e){}}
 function api(ruta,cuerpo,metodo){
   var o={headers:{}};
@@ -308,7 +309,7 @@ function formCliente(){
     api("/clientes",d).then(function(r){
       g("c-go").disabled=false;
       if(r.status===401){sesionVencida();return}
-      if(!r.ok){g("c-er").textContent=(r.d&&typeof r.d.error==="string"&&r.d.error)||"No pudimos registrarlo. Revisa los datos (¿ya existe ese documento?).";return}
+      if(!r.ok){g("c-er").textContent=motivoError(r)||"No pudimos registrarlo. Revisa los datos (¿ya existe ese documento?).";return}
       vista(cabecera()+'<div class="card"><p class="ok">Cliente registrado: '+esc(r.d.nombre||d.nombre)+'</p><button class="btn" id="otro">Registrar otro cliente</button></div>');
       enganchar();g("otro").onclick=formCliente;
     }).catch(function(){g("c-go").disabled=false;g("c-er").textContent="Sin conexión. Intenta de nuevo."});
