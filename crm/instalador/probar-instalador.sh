@@ -17,4 +17,5 @@ t PUT /api/clientes/x '{}' bloqueado
 t DELETE /api/clientes/x "" bloqueado
 t POST /api/facturas '{}' bloqueado
 t POST /api/clientes/..%2ffacturas '{}' bloqueado
+t POST /api/auth/panel-sso '{}' bloqueado
 echo "Todo debe decir [SI]."

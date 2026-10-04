@@ -11,11 +11,11 @@ export function esTipoInstalador(nombreTipo: string | null | undefined): boolean
 // [método, ruta exacta]
 const PERMITIDAS: Array<[string, string]> = [
   ["GET", "/api/auth/me"],
+  ["POST", "/api/auth/cambiar-clave"], // su propia clave
+  ["POST", "/api/auth/cerrar-sesiones"], // cerrar sus sesiones
   ["POST", "/api/clientes/link-registro"], // generar/obtener el enlace de registro de la empresa
   ["POST", "/api/clientes"], // registrar un cliente nuevo
 ];
-// Prefijos completos permitidos (cualquier método): solo la sesión del propio usuario (cambiar clave, cerrar sesión, 2FA).
-const PREFIJOS_PERMITIDOS = ["/api/auth/"];
 
 export function rutaPermitidaInstalador(metodo: string, urlOriginal: string): boolean {
   let ruta: string;
@@ -27,7 +27,6 @@ export function rutaPermitidaInstalador(metodo: string, urlOriginal: string): bo
   if (ruta.includes("..") || ruta.includes("//") || ruta.includes("\\") || ruta.includes("\0")) return false;
   ruta = ruta.replace(/\/+$/, "").toLowerCase() || "/";
   const m = metodo.toUpperCase();
-  if (PERMITIDAS.some(([pm, pr]) => pm === m && pr === ruta)) return true;
-  // /api/auth/login y similares no llegan aquí (son públicas); /api/auth/* con sesión es para la cuenta propia.
-  return PREFIJOS_PERMITIDOS.some((p) => ruta.startsWith(p));
+  // /api/auth/login, /captcha, /olvide, etc. son públicas y no pasan por esta revisión.
+  return PERMITIDAS.some(([pm, pr]) => pm === m && pr === ruta);
 }
