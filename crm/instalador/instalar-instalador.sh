@@ -9,4 +9,4 @@ mv -f "$M/auth.ts.pre-instalador" /home/ubuntu/backups/auth.ts.pre-instalador 2>
 install -m 644 "$HERE/instalador.ts" "$M/instalador.ts"
 chown ubuntu:ubuntu "$M/auth.ts" "$M/instalador.ts" 2>/dev/null || true
 echo "Ahora: cd /home/ubuntu/isp-crm/backend && sudo -u ubuntu npx tsc -p tsconfig.json --noEmit && sudo -u ubuntu npm run build && sudo -u ubuntu pm2 restart isp-crm-api --update-env"
-echo "Luego: crea el tipo de usuario 'Instalador' (Tipos de usuario) y asigna ese tipo a quien corresponda. Prueba con: bash $HERE/probar-instalador.sh"
+echo "Luego: crea el tipo de usuario 'Instalador' (Tipos de usuario) y asigna ese tipo a quien corresponda. Prueba con: node $HERE/probar-instalador.js correo_del_instalador"
