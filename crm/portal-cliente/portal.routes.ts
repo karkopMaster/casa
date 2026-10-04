@@ -12,6 +12,7 @@ import { controlPrisma } from "../lib/controlPrisma";
 import { tenantContext, getCachedTenantClient } from "../lib/tenantDb";
 import { obtenerConfigTenant } from "../lib/tenantConfig";
 import { enviarTextoOpenWA } from "../services/openwa";
+import { registrarEvento } from "../services/auditoria";
 
 const router = Router();
 const SLUG_PREDETERMINADO = "redcien";
@@ -271,6 +272,8 @@ router.post("/wifi", async (req, res) => {
       }
       await (prisma as any).contrato.update({ where: { id: c.id }, data: { ssidWifi: ssid, wifiPassword: clave } }).catch(() => null);
       console.log(`[portal-wifi] ${ses.ubic.slug} cliente=${ses.payload.sub} ONU=${decodeURIComponent(onu)} antenas=${puertos.length} OK`);
+      registrarEvento({ entidad: "CONTRATO", contratoId: c.id, clienteId: String(ses.payload.sub), tipoEvento: "OLT",
+        descripcion: `[Portal] El cliente cambió el nombre y la clave del WiFi de la ONU ${decodeURIComponent(onu)} (red: ${ssid}).` }).catch(() => {});
       res.json({ ok: true });
     } catch (e: any) {
       console.error(`[portal-wifi] ${ses.ubic.slug} cliente=${ses.payload.sub} FALLÓ: ${String(e?.message ?? e).slice(0, 160)}`);

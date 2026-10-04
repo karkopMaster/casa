@@ -13,3 +13,7 @@ Deshacer:
   cp /home/ubuntu/backups/gen-apk.sh.pre-cliente-<fecha> /home/ubuntu/isp-crm/apkbase/gen-apk.sh
   cp /home/ubuntu/backups/index.ts.pre-apkcliente-<fecha> /home/ubuntu/isp-crm/backend/src/index.ts
   rm /home/ubuntu/isp-crm/backend/src/routes/apkPortal.routes.ts ; recompilar y reiniciar
+
+ARMAZÓN LIMPIO DEL CLIENTE (quita las barras de administrador que se veían en la app del cliente)
+  bash /tmp/casa/crm/apk-cliente/instalar-shell-cliente.sh
+  Código fuente del armazón: crm/apk-cliente/shell/co/redcien/admin/MainActivity.java (WebView a pantalla completa).
