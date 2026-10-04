@@ -3,7 +3,7 @@
 //   node interruptores.js [slug] --si          (facturar suspendidos y con facturas abiertas)  -> pide --aplicar
 //   node interruptores.js [slug] --no          (volver a como estaba)                         -> pide --aplicar
 process.chdir("/home/ubuntu/isp-crm/backend");
-require("dotenv").config();
+require(require.resolve("dotenv", { paths: ["/home/ubuntu/isp-crm/backend"] })).config({ path: "/home/ubuntu/isp-crm/backend/.env" });
 const B = "/home/ubuntu/isp-crm/backend/dist";
 const { prisma } = require(B + "/lib/prisma");
 const { controlPrisma } = require(B + "/lib/controlPrisma");

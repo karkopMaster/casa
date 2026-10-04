@@ -3,7 +3,7 @@
 // Uso (en el VPS):  cd /home/ubuntu/isp-crm/backend && node /tmp/casa/crm/facturar-morosos/simular.js [slug]
 // Réplica de las reglas de generarFacturasDeGrupo() en src/services/billing.ts.
 process.chdir("/home/ubuntu/isp-crm/backend");
-require("dotenv").config();
+require(require.resolve("dotenv", { paths: ["/home/ubuntu/isp-crm/backend"] })).config({ path: "/home/ubuntu/isp-crm/backend/.env" });
 const B = "/home/ubuntu/isp-crm/backend/dist";
 const { prisma } = require(B + "/lib/prisma");
 const { controlPrisma } = require(B + "/lib/controlPrisma");
