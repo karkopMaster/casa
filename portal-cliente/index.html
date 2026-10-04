@@ -9,7 +9,7 @@ body{background:#e9eee9;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto
 #app{max-width:430px;min-height:100vh;margin:0 auto;background:var(--bg);position:relative;padding-bottom:96px;overflow:hidden}
 .top{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 0}
 .ib{width:38px;height:38px;border:0;background:transparent;display:grid;place-items:center;position:relative}
-.ib svg{width:24px;height:24px}.dot{position:absolute;top:6px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--p);border:2px solid var(--bg)}
+.ib svg{width:24px;height:24px}.av-ov{position:fixed;inset:0;background:rgba(15,31,20,.55);display:grid;place-items:center;padding:24px;z-index:50}.av-box{background:var(--card);border-radius:22px;padding:24px 22px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3)}.av-box h3{font-size:20px;margin-bottom:8px}.av-box p{color:var(--mut);white-space:pre-line;margin-bottom:18px;line-height:1.45}.dot{position:absolute;top:6px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--p);border:2px solid var(--bg)}
 .hero{text-align:center;padding:0 20px 8px;background:radial-gradient(420px 220px at 50% 0,var(--pl),transparent)}
 .hero img{max-height:104px;max-width:240px;object-fit:contain}
 .mono{display:inline-grid;place-items:center;width:74px;height:74px;border-radius:20px;background:var(--p);color:#fff;font-size:30px;font-weight:800}
@@ -85,7 +85,7 @@ var V = {
  login:function(paso,doc,err){return '<div class="login"><div class="hero" style="background:none">'+logo()+'</div><h1>Ingresa a tu cuenta</h1>'+
   (paso===2?'<p>Te enviamos un código de 6 dígitos a tu WhatsApp registrado.</p><input id="cod" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code"><div class="err">'+esc(err||"")+'</div><button class="btn full" id="ver">Entrar</button><small><a href="#login" id="otro" style="color:var(--p2);font-weight:700">Usar otro documento</a></small>'
    :'<p>Escribe tu número de documento y te enviamos un código por WhatsApp.</p><input id="doc" inputmode="numeric" maxlength="20" placeholder="Número de documento" autocomplete="off"><div class="err">'+esc(err||"")+'</div><button class="btn full" id="sol">Enviar código</button><small>Solo para clientes con servicio de internet.</small>')+'</div>'},
- inicio:function(){var d=C.saldo,ok=d<=0;return '<div class="top"><span></span><a class="ib" href="#promos" aria-label="Avisos" style="text-decoration:none;color:inherit">'+I.bell+(C.promos.length?'<i class="dot"></i>':"")+'</a></div><div class="hero">'+logo()+'</div>'+
+ inicio:function(){var d=C.saldo,ok=d<=0;return '<div class="top"><span></span><a class="ib" href="#promos" aria-label="Avisos" style="text-decoration:none;color:inherit">'+I.bell+(nuevos().length?'<i class="dot"></i>':"")+'</a></div><div class="hero">'+logo()+'</div>'+
   '<div class="hello"><h1>¡Hola, '+esc(C.nombre)+'!</h1><p>Bienvenido a '+esc(CFG.nombre)+'</p></div>'+
   '<div class="card estado"><div class="plan"><div class="wifi">'+I.wifi.replace("<svg","<svg stroke=\"#fff\"")+'</div><div><small>Plan actual</small><b>'+esc(C.plan)+'</b><div class="'+(C.estadoServicio==="Activo"?"ok":"mal")+'" style="font-size:13px;font-weight:700">'+esc(C.estadoServicio)+'</div></div></div><div class="sep"></div><div><small>Estado de cuenta</small><b class="'+(ok?"ok":"pend")+'">'+(ok?"Al día ✓":"Saldo "+money(d))+'</b><small>'+(ok?"Facturas al día":"Pendiente de pago")+'</small></div></div>'+
   '<h2>Accesos rápidos</h2><div class="grid">'+ac("#facturas",I.inv,"Mis Facturas")+ac("#pagar",I.card,"Realizar Pago")+ac("#velocidad",I.gauge,"Test de Velocidad")+ac("#soporte",I.head,"Soporte Técnico","Reportar falla")+ac("#plan",I.router,"Mi Plan","Ver detalles")+ac("#promos",I.mega,"Promociones","y noticias")+ac("#cobertura",I.pin,"Cobertura","y zonas")+ac(wa("Hola, soy "+C.nombreCompleto+contrato()+"."),I.wa,"WhatsApp","Escríbenos")+(C.wifi&&C.wifi.habilitado?ac("#wifi",I.wifi,"Mi WiFi","Nombre y clave"):"")+'</div>'+
@@ -108,7 +108,7 @@ function mapear(d){
   C={nombre:prim.charAt(0).toUpperCase()+prim.slice(1).toLowerCase(),nombreCompleto:nombre,documento:d.cliente.documento,direccion:d.cliente.direccion||"",
      contrato:d.contrato?String(d.contrato.numero):"",estadoServicio:d.contrato?d.contrato.estado:"Sin contrato",
      plan:d.plan?d.plan.nombre:"Sin plan",velocidad:d.plan?d.plan.bajada:0,subida:d.plan?d.plan.subida:0,saldo:Number(d.saldo)||0,
-     facturas:(d.facturas||[]).map(function(f){return{p:periodo(f.emision),m:f.total,e:f.estado,v:fecha(f.vence),s:f.saldo}}),medios:(d.medios||[]).filter(function(m){return m.v}),promos:(d.avisos||[]).map(function(a){return{t:a.titulo,d:a.mensaje,f:fecha(a.fecha)}})};
+     facturas:(d.facturas||[]).map(function(f){return{p:periodo(f.emision),m:f.total,e:f.estado,v:fecha(f.vence),s:f.saldo}}),medios:(d.medios||[]).filter(function(m){return m.v}),promos:(d.avisos||[]).map(function(a){return{t:a.titulo,d:a.mensaje,f:fecha(a.fecha),r:a.fecha}})};
 }
 function api(ruta,cuerpo){var o={headers:{"Content-Type":"application/json"}};if(cuerpo){o.method="POST";o.body=JSON.stringify(cuerpo)}else if(TOKEN){o.headers.Authorization="Bearer "+TOKEN}
   return fetch("/api/portal"+ruta,o).then(function(r){return r.json().catch(function(){return{}}).then(function(d){return{ok:r.ok,status:r.status,d:d}})})}
@@ -124,6 +124,21 @@ function login(paso,doc,err){
       TOKEN=r.d.token;try{localStorage.setItem("portal_token",TOKEN)}catch(e){};location.hash="#inicio";pintar()}).catch(function(){login(2,doc,"No hay conexión. Intenta de nuevo.")})}};
   b.addEventListener("click",enviar);i.addEventListener("keydown",function(e){if(e.key==="Enter")enviar()});
 }
+/* Avisos nuevos (Feliz año, Halloween, promociones…) que el administrador publica en el CRM: campana con punto y ventana al abrir la app */
+var vistoMem=0;
+function vistoTs(){var v=0;try{v=+localStorage.getItem("portal_avisos_visto")||0}catch(e){}v=Math.max(v,vistoMem);return v||Date.now()-7*864e5}
+function guardarVisto(t){vistoMem=t;try{localStorage.setItem("portal_avisos_visto",String(t))}catch(e){}}
+function nuevos(){var v=vistoTs();return (C&&C.promos||[]).filter(function(p){var t=Date.parse(p.r);return t>v})}
+function maxTs(){return (C&&C.promos||[]).reduce(function(m,p){var t=Date.parse(p.r);return t>m?t:m},0)}
+function marcarVistos(){var m=maxTs();if(m)guardarVisto(Math.max(m,vistoTs()))}
+function mostrarAviso(){var n=nuevos();if(!n.length||document.getElementById("av-ov"))return;var p=n.sort(function(a,b){return Date.parse(b.r)-Date.parse(a.r)})[0];
+  var o=document.createElement("div");o.className="av-ov";o.id="av-ov";
+  o.innerHTML='<div class="av-box"><h3>'+esc(p.t)+'</h3><p>'+esc(p.d)+'</p><button class="btn full" id="av-ok">Entendido</button>'+(n.length>1?'<a href="#promos" id="av-mas" style="display:block;margin-top:12px;font-weight:700">Ver todos los avisos</a>':"")+'</div>';
+  document.body.appendChild(o);
+  function cerrar(){marcarVistos();o.remove()}
+  document.getElementById("av-ok").addEventListener("click",cerrar);
+  var mas=document.getElementById("av-mas");if(mas)mas.addEventListener("click",cerrar);
+}
 function pintar(){
   var r=(location.hash||"#inicio").slice(1);
   if(r==="salir"){salir();location.hash="#inicio";r="inicio"}
@@ -135,6 +150,8 @@ function pintar(){
       mapear(x.d);aplicarMarca();api("/wifi").then(function(w){C.wifi=w.ok?w.d:{habilitado:false}}).catch(function(){C.wifi={habilitado:false}}).then(function(){pintar()})}).catch(function(){pantalla('<div class="cargando">Sin conexión. Revisa tu internet e intenta de nuevo.</div>')});return}
   pantalla((V[r]||V.inicio)());
   if(r==="wifi")bindWifi();
+  if(r==="promos")marcarVistos();
+  if(r==="inicio")mostrarAviso();
 }
 function bindWifi(){
   var go=document.getElementById("w-go");if(!go)return;
