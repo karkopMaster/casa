@@ -15,3 +15,9 @@ Deshacer:
   cp /home/ubuntu/backups/index.ts.pre-portal-<fecha> /home/ubuntu/isp-crm/backend/src/index.ts
   rm /home/ubuntu/isp-crm/backend/src/routes/portal.routes.ts ; rm -rf /home/ubuntu/isp-crm/backend/public/cliente
   cd /home/ubuntu/isp-crm/backend && rm -rf dist && mv dist.pre-portal dist && sudo -u ubuntu pm2 restart isp-crm-api
+
+MI WIFI (opcional, apagado por defecto)
+  Agrega a /home/ubuntu/isp-crm/backend/.env :   PORTAL_WIFI=1     y reinicia (pm2 restart isp-crm-api --update-env)
+  Usa SmartOLT: get_onu_details (antenas del equipo) + set_wifi_port_lan (nombre y clave, WPA2) en cada antena.
+  Solo contratos HABILITADOS con ONU (onuIdentificador). Máx. 1 cambio/min y 3/día por cliente. La clave no se registra.
+  Prueba primero con tu ONU de prueba. Para apagar: quita PORTAL_WIFI y reinicia.

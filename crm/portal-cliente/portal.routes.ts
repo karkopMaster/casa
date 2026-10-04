@@ -181,4 +181,102 @@ router.get("/cuenta", async (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------------------------
+// Mi WiFi: cambiar nombre y clave desde el portal (SmartOLT). Apagado por defecto: PORTAL_WIFI=1 lo enciende.
+// - Solo la ONU del propio contrato del cliente. GET lee de la base (0 llamadas a SmartOLT).
+// - POST: 1 llamada get_onu_details + 1 set_wifi_port_lan por antena. Máx. 1 cambio por minuto y 3 por día por cliente.
+// - La clave nunca se escribe en logs.
+// ---------------------------------------------------------------------------------------------
+const wifiActivo = () => process.env.PORTAL_WIFI === "1";
+const cambiosWifi = new Map<string, number[]>();
+
+async function sesionPortal(req: any, res: any) {
+  const s = secreto();
+  if (!s) { res.status(503).json({ error: "El portal no está configurado." }); return null; }
+  let payload: any;
+  try { payload = jwt.verify(String(req.headers.authorization ?? "").replace(/^Bearer\s+/i, ""), s, { audience: "portal" }); }
+  catch { res.status(401).json({ error: "Sesión vencida." }); return null; }
+  const ubic = await ubicarTenant(req);
+  if (!ubic || ubic.slug !== payload.slug) { res.status(401).json({ error: "Sesión vencida." }); return null; }
+  return { payload, ubic };
+}
+
+async function contratoWifi(clienteId: string) {
+  const c: any = await (prisma as any).contrato.findFirst({
+    where: { clienteId, estado: "HABILITADO", onuIdentificador: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, onuIdentificador: true, ssidWifi: true },
+  });
+  return c && String(c.onuIdentificador ?? "").trim() ? c : null;
+}
+
+async function configSmartOlt(tenantId: string) {
+  const m = (prisma as any).configuracionOLT;
+  const cfg: any = await obtenerConfigTenant(m, tenantId).catch(() => null) ?? (await m.findFirst().catch(() => null));
+  if (!cfg?.smartoltUrl || !cfg?.smartoltApiKey) return null;
+  const base = String(cfg.smartoltUrl).replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://");
+  return { base, key: String(cfg.smartoltApiKey) };
+}
+
+async function smartolt(cfg: { base: string; key: string }, ruta: string, cuerpo?: Record<string, string>) {
+  const r = await fetch(cfg.base + ruta, {
+    method: cuerpo ? "POST" : "GET",
+    headers: { "X-Token": cfg.key, ...(cuerpo ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
+    body: cuerpo ? new URLSearchParams(cuerpo).toString() : undefined,
+    signal: AbortSignal.timeout(45000),
+  });
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok || j?.status === false) throw new Error(String(j?.error || `SmartOLT ${r.status}`).slice(0, 200));
+  return j;
+}
+
+router.get("/wifi", async (req, res) => {
+  const ses = await sesionPortal(req, res);
+  if (!ses) return;
+  if (!wifiActivo()) return res.json({ habilitado: false });
+  await tenantContext.run(ses.ubic.client, async () => {
+    const c = await contratoWifi(String(ses.payload.sub));
+    const cfg = c ? await configSmartOlt(ses.ubic.tenant.id) : null;
+    res.json({ habilitado: !!(c && cfg), ssid: c?.ssidWifi ?? null });
+  });
+});
+
+router.post("/wifi", async (req, res) => {
+  const ses = await sesionPortal(req, res);
+  if (!ses) return;
+  if (!wifiActivo()) return res.status(404).json({ error: "Esta opción no está disponible." });
+  const ssid = String(req.body?.ssid ?? "").trim();
+  const clave = String(req.body?.clave ?? "");
+  if (ssid.length < 1 || ssid.length > 32 || /[\u0000-\u001f\u007f]/.test(ssid)) return res.status(400).json({ error: "El nombre de la red debe tener entre 1 y 32 caracteres." });
+  if (clave.length < 8 || clave.length > 63 || /[^\x20-\x7e]/.test(clave)) return res.status(400).json({ error: "La clave debe tener entre 8 y 63 caracteres, sin tildes ni ñ." });
+
+  const llave = `${ses.ubic.slug}:${ses.payload.sub}`;
+  const ahora = Date.now();
+  const previos = (cambiosWifi.get(llave) ?? []).filter((t) => ahora - t < 24 * 3600 * 1000);
+  if (previos.length && ahora - previos[previos.length - 1] < 60 * 1000) return res.status(429).json({ error: "Espera un minuto antes de intentarlo de nuevo." });
+  if (previos.length >= 3) return res.status(429).json({ error: "Llegaste al máximo de 3 cambios por día. Intenta mañana o escríbenos." });
+
+  await tenantContext.run(ses.ubic.client, async () => {
+    const c = await contratoWifi(String(ses.payload.sub));
+    const cfg = c ? await configSmartOlt(ses.ubic.tenant.id) : null;
+    if (!c || !cfg) return res.status(404).json({ error: "Esta opción no está disponible para tu servicio." });
+    cambiosWifi.set(llave, [...previos, ahora]);
+    const onu = encodeURIComponent(String(c.onuIdentificador).trim());
+    try {
+      const det = await smartolt(cfg, `/api/onu/get_onu_details/${onu}`);
+      const puertos: string[] = (det?.onu_details?.wifi_ports ?? []).map((p: any) => String(p?.port ?? "")).filter((p: string) => /^wifi_[0-9/]+$/.test(p)).slice(0, 2);
+      if (!puertos.length) return res.status(409).json({ error: "Tu equipo no permite este cambio desde la app. Escríbenos y lo hacemos por ti." });
+      for (const puerto of puertos) {
+        await smartolt(cfg, `/api/onu/set_wifi_port_lan/${onu}`, { wifi_port: puerto, dhcp: "No control", ssid, password: clave, authentication_mode: "WPA2" });
+      }
+      await (prisma as any).contrato.update({ where: { id: c.id }, data: { ssidWifi: ssid, wifiPassword: clave } }).catch(() => null);
+      console.log(`[portal-wifi] ${ses.ubic.slug} cliente=${ses.payload.sub} ONU=${decodeURIComponent(onu)} antenas=${puertos.length} OK`);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error(`[portal-wifi] ${ses.ubic.slug} cliente=${ses.payload.sub} FALLÓ: ${String(e?.message ?? e).slice(0, 160)}`);
+      res.status(502).json({ error: "No pudimos cambiar tu WiFi ahora. Intenta en unos minutos o escríbenos." });
+    }
+  });
+});
+
 export default router;
