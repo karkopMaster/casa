@@ -69,7 +69,7 @@ async function ticketPropio(req: AuthedRequest, res: any) {
 router.get("/ordenes", async (req: AuthedRequest, res) => {
   const verTodas = String(req.query.todas ?? "") === "1";
   const items = await prisma.ticket.findMany({
-    where: { tecnicoId: uidDe(req), ...(verTodas ? {} : { estado: { notIn: ["CERRADO"] } }), ...tenantWhere(req) },
+    where: { tecnicoId: uidDe(req), ...(verTodas ? {} : { estado: { notIn: ["SOLUCIONADO", "CERRADO"] } }), ...tenantWhere(req) },
     include: { cliente: true },
     orderBy: { createdAt: "desc" },
     take: 100,

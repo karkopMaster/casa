@@ -141,7 +141,7 @@ function enganchar(){g("sal").onclick=salir;api("/auth/me").then(function(r){
 var VER_TODAS=false;
 function lista(){
   vista(cabecera()+'<div id="lst"><div class="card mut">Cargando tus instalaciones…</div></div>'+
-    '<button class="btn o s" id="rec">Actualizar</button><button class="btn o s" id="todas">'+(VER_TODAS?"Ocultar cerradas":"Ver también las cerradas")+'</button>');
+    '<button class="btn o s" id="rec">Actualizar</button><button class="btn o s" id="todas">'+(VER_TODAS?"Ocultar terminadas":"Ver también las terminadas")+'</button>');
   enganchar();
   g("rec").onclick=lista;g("todas").onclick=function(){VER_TODAS=!VER_TODAS;lista()};
   api("/instalador/ordenes"+(VER_TODAS?"?todas=1":"")).then(function(r){
