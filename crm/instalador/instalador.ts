@@ -15,7 +15,11 @@ const PERMITIDAS: Array<[string, string]> = [
   ["POST", "/api/auth/cerrar-sesiones"], // cerrar sus sesiones
   ["POST", "/api/clientes/link-registro"], // generar/obtener el enlace de registro de la empresa
   ["POST", "/api/clientes"], // registrar un cliente nuevo
+  ["GET", "/api/municipios"], // listas para el formulario (solo lectura)
+  ["GET", "/api/barrios"],
 ];
+// Rutas propias del instalador: cada una comprueba que el ticket sea suyo (ver instalador.routes.ts).
+const PREFIJOS_PERMITIDOS = ["/api/instalador/"];
 
 export function rutaPermitidaInstalador(metodo: string, urlOriginal: string): boolean {
   let ruta: string;
@@ -28,5 +32,6 @@ export function rutaPermitidaInstalador(metodo: string, urlOriginal: string): bo
   ruta = ruta.replace(/\/+$/, "").toLowerCase() || "/";
   const m = metodo.toUpperCase();
   // /api/auth/login, /captcha, /olvide, etc. son públicas y no pasan por esta revisión.
-  return PERMITIDAS.some(([pm, pr]) => pm === m && pr === ruta);
+  if (PERMITIDAS.some(([pm, pr]) => pm === m && pr === ruta)) return true;
+  return PREFIJOS_PERMITIDOS.some((p) => ruta.startsWith(p));
 }

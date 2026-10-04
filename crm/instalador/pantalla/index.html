@@ -7,49 +7,70 @@
 <meta name="theme-color" content="#16a34a">
 <title>Instaladores</title>
 <style>
-:root{--p:#16a34a;--bg:#f2fbf5;--card:#fff;--txt:#0f1f14;--mut:#5b6b60;--line:#e2ece6;--err:#b91c1c}
+:root{--p:#16a34a;--bg:#f2fbf5;--card:#fff;--txt:#0f1f14;--mut:#5b6b60;--line:#e2ece6;--err:#b91c1c;--warn:#b45309}
 *{box-sizing:border-box;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{background:var(--bg);color:var(--txt);min-height:100vh;padding:20px 16px 40px}
-.wrap{max-width:440px;margin:0 auto}
-.logo{display:block;max-height:72px;max-width:70%;margin:6px auto 4px;object-fit:contain}
-h1{font-size:22px;text-align:center;margin:6px 0 4px}.sub{text-align:center;color:var(--mut);margin-bottom:18px;font-size:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 2px 10px rgba(15,31,20,.05)}
-label{display:block;font-size:13px;font-weight:700;margin:12px 0 5px}
-input{width:100%;font-size:16px;padding:12px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--txt)}
-input:focus{outline:none;border-color:var(--p)}
-.btn{display:block;width:100%;border:0;border-radius:14px;padding:15px 16px;font-size:17px;font-weight:700;background:var(--p);color:#fff;cursor:pointer;text-align:center;text-decoration:none;margin-top:14px}
-.btn.o{background:#fff;color:var(--p);border:2px solid var(--p)}.btn.wa{background:#25d366}.btn:disabled{opacity:.6}
-.err{color:var(--err);font-size:14px;font-weight:600;margin-top:10px;min-height:18px}.ok{color:#15803d;font-weight:700}
+body{background:var(--bg);color:var(--txt);min-height:100vh;padding:14px 14px 90px}
+.wrap{max-width:520px;margin:0 auto}
+.logo{display:block;max-height:60px;max-width:60%;margin:2px auto 2px;object-fit:contain}
+h1{font-size:20px;text-align:center;margin:4px 0 2px}.sub{text-align:center;color:var(--mut);margin-bottom:12px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(15,31,20,.05)}
+label{display:block;font-size:13px;font-weight:700;margin:11px 0 4px}
+input,select,textarea{width:100%;font-size:16px;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--txt)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--p)}
+.btn{display:block;width:100%;border:0;border-radius:13px;padding:14px 14px;font-size:16px;font-weight:700;background:var(--p);color:#fff;cursor:pointer;text-align:center;text-decoration:none;margin-top:12px}
+.btn.o{background:#fff;color:var(--p);border:2px solid var(--p)}.btn.wa{background:#25d366}.btn.s{padding:10px;font-size:14px;margin-top:8px}.btn:disabled{opacity:.5}
+.err{color:var(--err);font-size:14px;font-weight:600;margin-top:8px;min-height:16px}.ok{color:#15803d;font-weight:700}.warn{color:var(--warn);font-size:13px;font-weight:600;margin-top:6px}
 .cap{display:flex;gap:10px;align-items:center;margin-top:6px}.cap img{height:50px;border-radius:8px;border:1px solid var(--line)}
 .cap button{border:0;background:none;color:var(--p);font-weight:700;font-size:14px}
 .link{word-break:break-all;background:#f1f5f9;border-radius:10px;padding:10px;font-size:13px;margin-top:10px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:14px;color:var(--mut)}
-.top button{border:0;background:none;color:var(--p);font-weight:700;font-size:14px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:14px;color:var(--mut)}
+.top button,.lnk{border:0;background:none;color:var(--p);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none}
 .hide{display:none}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+.tabs button{flex:1;border:0;background:none;padding:8px 2px;font-size:12px;font-weight:700;color:var(--mut);cursor:pointer}
+.tabs button.on{color:var(--p)}.tabs span{display:block;font-size:20px;margin-bottom:2px}
+.ord{cursor:pointer}.ord b{font-size:16px}.mut{color:var(--mut);font-size:13px;margin-top:3px}
+.bad{display:inline-block;font-size:11px;font-weight:800;padding:3px 8px;border-radius:99px;background:#e0f2fe;color:#075985;margin-left:6px;vertical-align:middle}
+.bad.EN_RUTA,.bad.EN_PROCESO{background:#fef3c7;color:#92400e}.bad.SOLUCIONADO,.bad.CERRADO{background:#dcfce7;color:#166534}
+.est{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.est .btn{margin-top:0;padding:11px;font-size:14px}
+.est .btn.act{background:var(--p);color:#fff}
+.fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.fotos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+canvas{width:100%;height:170px;border:2px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;display:block;margin-top:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+h3{font-size:15px;margin-bottom:2px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <img id="logo" class="logo hide" alt="">
   <h1 id="emp">Instaladores</h1>
-  <p class="sub">Registro de clientes</p>
+  <p class="sub" id="sub">Instalaciones y registro de clientes</p>
   <div id="vista"></div>
 </div>
+<nav class="tabs hide" id="tabs">
+  <button data-t="ord"><span>🛠️</span>Instalaciones</button>
+  <button data-t="cli"><span>👤</span>Nuevo cliente</button>
+  <button data-t="lnk"><span>🔗</span>Enlace</button>
+</nav>
 <script>
 (function(){
 "use strict";
-var TOKEN=null,PRE=null,CAP=null;
+var TOKEN=null,PRE=null,CAP=null,TAB="ord",ORD=null,GEO=null;
 try{TOKEN=sessionStorage.getItem("inst_token")}catch(e){}
 function g(id){return document.getElementById(id)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function guardar(t){TOKEN=t;try{if(t)sessionStorage.setItem("inst_token",t);else sessionStorage.removeItem("inst_token")}catch(e){}}
-function api(ruta,cuerpo){
-  var o={headers:{"Content-Type":"application/json"}};
+function api(ruta,cuerpo,metodo){
+  var o={headers:{}};
   if(TOKEN)o.headers.Authorization="Bearer "+TOKEN;
-  if(cuerpo!==undefined){o.method="POST";o.body=JSON.stringify(cuerpo)}
+  if(cuerpo instanceof FormData){o.method="POST";o.body=cuerpo}
+  else if(cuerpo!==undefined){o.method=metodo||"POST";o.headers["Content-Type"]="application/json";o.body=JSON.stringify(cuerpo)}
   return fetch("/api"+ruta,o).then(function(r){return r.json().catch(function(){return{}}).then(function(d){return{ok:r.ok,status:r.status,d:d}})});
 }
-function vista(h){g("vista").innerHTML=h}
+function vista(h){g("vista").innerHTML=h;window.scrollTo(0,0)}
+function sesionVencida(){guardar(null);entrar("Tu sesión venció. Entra de nuevo.")}
+var ESTADOS=[["EN_RUTA","En ruta"],["EN_PROCESO","En proceso"],["SOLUCIONADO","Solucionado"],["CERRADO","Cerrado"]];
+var ETQ={NUEVO:"Nuevo",ASIGNADO:"Asignado",EN_RUTA:"En ruta",EN_PROCESO:"En proceso",SOLUCIONADO:"Solucionado",CERRADO:"Cerrado"};
 
 /* Marca de la empresa */
 fetch("/api/public/empresa",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
@@ -60,20 +81,18 @@ fetch("/api/public/empresa",{cache:"no-store"}).then(function(r){return r.ok?r.j
 /* ---- Entrar ---- */
 function cargarCaptcha(){
   return api("/auth/captcha").then(function(r){
-    if(!r.ok||!r.d.imagen){g("cap-img").alt="No se pudo cargar";return}
-    CAP=r.d.token;g("cap-img").src=r.d.imagen;g("cap").value="";
+    if(!r.ok||!r.d.imagen)return; CAP=r.d.token;g("cap-img").src=r.d.imagen;g("cap").value="";
   }).catch(function(){});
 }
 function entrar(msg){
-  PRE=null;
+  PRE=null;g("tabs").classList.add("hide");
   vista('<div class="card"><b>Entra con tu usuario</b>'+
     '<label for="em">Correo</label><input id="em" type="email" autocomplete="username" inputmode="email">'+
     '<label for="pw">Clave</label><input id="pw" type="password" autocomplete="current-password">'+
     '<label for="cap">Escribe las letras de la imagen</label>'+
     '<div class="cap"><img id="cap-img" alt="Código de verificación"><button type="button" id="cap-nuevo">Otro código</button></div>'+
     '<input id="cap" autocomplete="off" autocapitalize="characters" style="margin-top:8px">'+
-    '<div class="err" id="er">'+esc(msg||"")+'</div>'+
-    '<button class="btn" id="go">Entrar</button></div>');
+    '<div class="err" id="er">'+esc(msg||"")+'</div><button class="btn" id="go">Entrar</button></div>');
   cargarCaptcha();
   g("cap-nuevo").onclick=cargarCaptcha;
   g("go").onclick=function(){
@@ -83,88 +102,244 @@ function entrar(msg){
     api("/auth/login",{email:em,password:pw,captchaToken:CAP,captchaRespuesta:cp}).then(function(r){
       g("go").disabled=false;
       if(r.ok&&r.d.requiere2FA){PRE=r.d.preToken;dos();return}
-      if(r.ok&&r.d.token){guardar(r.d.token);inicio();return}
-      g("er").textContent=(r.d&&r.d.error)||"No pudimos entrar. Intenta de nuevo.";
-      cargarCaptcha();
+      if(r.ok&&r.d.token){guardar(r.d.token);principal();return}
+      g("er").textContent=(r.d&&r.d.error)||"No pudimos entrar. Intenta de nuevo.";cargarCaptcha();
     }).catch(function(){g("go").disabled=false;g("er").textContent="Sin conexión. Intenta de nuevo."});
   };
 }
 function dos(){
   vista('<div class="card"><b>Verificación en dos pasos</b><p class="sub" style="text-align:left;margin:6px 0 0">Escribe el código de 6 números de tu aplicación de autenticación.</p>'+
     '<label for="c2">Código</label><input id="c2" inputmode="numeric" autocomplete="one-time-code">'+
-    '<div class="err" id="er"></div><button class="btn" id="go2">Verificar</button>'+
-    '<button class="btn o" id="atras">Volver</button></div>');
+    '<div class="err" id="er"></div><button class="btn" id="go2">Verificar</button><button class="btn o" id="atras">Volver</button></div>');
   g("atras").onclick=function(){entrar()};
   g("go2").onclick=function(){
     var c=g("c2").value.trim();if(!c){g("er").textContent="Escribe el código.";return}
     g("go2").disabled=true;
     api("/auth/login/2fa",{preToken:PRE,token:c}).then(function(r){
       g("go2").disabled=false;
-      if(r.ok&&r.d.token){guardar(r.d.token);inicio();return}
+      if(r.ok&&r.d.token){guardar(r.d.token);principal();return}
       g("er").textContent=(r.d&&r.d.error)||"Código incorrecto.";
     }).catch(function(){g("go2").disabled=false;g("er").textContent="Sin conexión."});
   };
 }
 function salir(){guardar(null);entrar()}
 
-/* ---- Inicio ---- */
-function inicio(){
-  vista('<div class="top"><span id="quien">…</span><button id="sal">Salir</button></div>'+
-    '<div class="card"><b>Enlace de registro</b><p class="sub" style="text-align:left;margin:4px 0 0">Envíaselo al cliente: él mismo llena sus datos.</p>'+
-    '<button class="btn" id="b-link">Obtener enlace</button><div id="r-link"></div></div>'+
-    '<div class="card"><b>Registrar un cliente aquí</b><p class="sub" style="text-align:left;margin:4px 0 0">Si prefieres llenar tú los datos.</p>'+
-    '<button class="btn o" id="b-form">Abrir formulario</button><div id="r-form"></div></div>');
-  g("sal").onclick=salir;
-  g("b-link").onclick=pedirLink;
-  g("b-form").onclick=formulario;
-  api("/auth/me").then(function(r){
-    if(r.status===401){salir();return}
-    var u=r.d&&(r.d.usuario||r.d)||{};g("quien").textContent=u.nombre||u.email||"Sesión iniciada";
-  }).catch(function(){g("quien").textContent=""});
+/* ---- Estructura principal con pestañas ---- */
+function principal(){
+  g("tabs").classList.remove("hide");
+  Array.prototype.forEach.call(g("tabs").querySelectorAll("button"),function(b){b.onclick=function(){TAB=b.getAttribute("data-t");ORD=null;pestana()}});
+  pestana();
 }
-function pedirLink(){
-  var b=g("b-link");b.disabled=true;b.textContent="Un momento…";
-  api("/clientes/link-registro",{}).then(function(r){
-    b.disabled=false;b.textContent="Obtener enlace";
-    if(r.status===401){salir();return}
-    if(!r.ok||!r.d.url){g("r-link").innerHTML='<div class="err">No pudimos generar el enlace.</div>';return}
-    var url=location.origin+r.d.url;
-    var msg="Hola, para registrarte como cliente llena tus datos en este enlace: "+url;
-    g("r-link").innerHTML='<div class="link">'+esc(url)+'</div>'+
-      '<a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(msg)+'">Enviar por WhatsApp</a>'+
-      '<button class="btn o" id="cop">Copiar enlace</button><div class="err" id="cop-m"></div>';
-    g("cop").onclick=function(){
-      var ok=function(){g("cop-m").className="ok";g("cop-m").textContent="Enlace copiado"};
-      var no=function(){g("cop-m").textContent="No se pudo copiar: mantén presionado el enlace y cópialo."};
-      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(ok,no);else no();
-    };
-  }).catch(function(){b.disabled=false;b.textContent="Obtener enlace";g("r-link").innerHTML='<div class="err">Sin conexión.</div>'});
+function marcarTab(){Array.prototype.forEach.call(g("tabs").querySelectorAll("button"),function(b){b.classList.toggle("on",b.getAttribute("data-t")===TAB)})}
+function pestana(){marcarTab();if(TAB==="ord")(ORD?detalle(ORD):lista());else if(TAB==="cli")formCliente();else enlace()}
+function cabecera(){return '<div class="top"><span id="quien"></span><button id="sal">Salir</button></div>'}
+function enganchar(){g("sal").onclick=salir;api("/auth/me").then(function(r){
+  if(r.status===401){sesionVencida();return}
+  var u=r.d&&(r.d.usuario||r.d)||{};if(g("quien"))g("quien").textContent=u.nombre||u.email||""}).catch(function(){})}
+
+/* ---- Instalaciones ---- */
+var VER_TODAS=false;
+function lista(){
+  vista(cabecera()+'<div id="lst"><div class="card mut">Cargando tus instalaciones…</div></div>'+
+    '<button class="btn o s" id="rec">Actualizar</button><button class="btn o s" id="todas">'+(VER_TODAS?"Ocultar cerradas":"Ver también las cerradas")+'</button>');
+  enganchar();
+  g("rec").onclick=lista;g("todas").onclick=function(){VER_TODAS=!VER_TODAS;lista()};
+  api("/instalador/ordenes"+(VER_TODAS?"?todas=1":"")).then(function(r){
+    if(r.status===401){sesionVencida();return}
+    if(!r.ok){g("lst").innerHTML='<div class="card err">No pudimos cargar tus instalaciones.</div>';return}
+    var it=r.d.items||[];
+    if(!it.length){g("lst").innerHTML='<div class="card"><b>No tienes instalaciones pendientes</b><p class="mut">Cuando te asignen una, aparece aquí.</p></div>';return}
+    g("lst").innerHTML=it.map(function(o){
+      return '<div class="card ord" data-id="'+esc(o.id)+'"><b>#'+esc(o.numero)+' · '+esc(o.cliente?o.cliente.nombre:o.titulo)+'</b><span class="bad '+esc(o.estado)+'">'+esc(ETQ[o.estado]||o.estado)+'</span>'+
+        '<div class="mut">'+esc(o.direccion)+(o.barrio?" · "+esc(o.barrio):"")+'</div>'+
+        '<div class="mut">📷 '+o.fotos+' foto'+(o.fotos===1?"":"s")+(o.firmado?" · ✍️ firmado":"")+'</div></div>';
+    }).join("");
+    Array.prototype.forEach.call(g("lst").querySelectorAll(".ord"),function(c){c.onclick=function(){ORD=c.getAttribute("data-id");detalle(ORD)}});
+  }).catch(function(){g("lst").innerHTML='<div class="card err">Sin conexión.</div>'});
 }
-function formulario(){
-  g("b-form").classList.add("hide");
-  g("r-form").innerHTML=
-    '<label for="f-nom">Nombre completo *</label><input id="f-nom" autocomplete="off">'+
-    '<label for="f-doc">Documento *</label><input id="f-doc" inputmode="numeric" autocomplete="off">'+
-    '<label for="f-wa">WhatsApp</label><input id="f-wa" inputmode="tel" autocomplete="off">'+
-    '<label for="f-dir">Dirección</label><input id="f-dir" autocomplete="off">'+
-    '<div class="err" id="f-er"></div><button class="btn" id="f-go">Registrar cliente</button>';
-  g("f-go").onclick=function(){
-    var d={nombre:g("f-nom").value.trim(),documento:g("f-doc").value.trim(),whatsapp:g("f-wa").value.trim(),direccion:g("f-dir").value.trim()};
-    if(!d.nombre||!d.documento){g("f-er").textContent="El nombre y el documento son obligatorios.";return}
-    Object.keys(d).forEach(function(k){if(!d[k])delete d[k]});
-    g("f-go").disabled=true;g("f-er").textContent="";
-    api("/clientes",d).then(function(r){
-      g("f-go").disabled=false;
-      if(r.status===401){salir();return}
-      if(!r.ok){g("f-er").textContent=(r.d&&typeof r.d.error==="string"&&r.d.error)||"No pudimos registrarlo. Revisa los datos (¿ya existe ese documento?).";return}
-      g("r-form").innerHTML='<p class="ok" style="margin-top:12px">Cliente registrado: '+esc(r.d.nombre||d.nombre)+'</p><button class="btn o" id="otro">Registrar otro</button>';
-      g("otro").onclick=function(){g("r-form").innerHTML="";formulario()};
-    }).catch(function(){g("f-go").disabled=false;g("f-er").textContent="Sin conexión. Intenta de nuevo."});
+function reducir(file){
+  return new Promise(function(res){
+    try{
+      var url=URL.createObjectURL(file),im=new Image();
+      im.onload=function(){try{
+        var M=1600,s=Math.min(1,M/Math.max(im.width,im.height)),c=document.createElement("canvas");
+        c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+        c.toBlob(function(b){URL.revokeObjectURL(url);res(b||file)},"image/jpeg",0.82)}catch(e){res(file)}};
+      im.onerror=function(){res(file)};im.src=url;
+    }catch(e){res(file)}
+  });
+}
+function detalle(id){
+  vista(cabecera()+'<button class="lnk" id="vol">← Mis instalaciones</button><div id="det"><div class="card mut">Cargando…</div></div>');
+  enganchar();g("vol").onclick=function(){ORD=null;lista()};
+  api("/instalador/ordenes/"+encodeURIComponent(id)).then(function(r){
+    if(r.status===401){sesionVencida();return}
+    if(!r.ok){g("det").innerHTML='<div class="card err">No encontramos esta instalación.</div>';return}
+    pintarDetalle(r.d);
+  }).catch(function(){g("det").innerHTML='<div class="card err">Sin conexión.</div>'});
+}
+function pintarDetalle(o){
+  var c=o.cliente||{},tel=c.telefono||o.telefono,wa=(c.whatsapp||tel||"").replace(/\D/g,"");
+  var sinFotos=!o.listaFotos||!o.listaFotos.length;
+  g("det").innerHTML=
+   '<div class="card"><b>#'+esc(o.numero)+' · '+esc(c.nombre||o.titulo)+'</b><span class="bad '+esc(o.estado)+'">'+esc(ETQ[o.estado]||o.estado)+'</span>'+
+   '<div class="mut">'+esc(o.titulo)+'</div>'+(o.descripcion?'<p style="margin-top:8px;font-size:14px;white-space:pre-line">'+esc(o.descripcion)+'</p>':"")+
+   '<div class="mut" style="margin-top:8px">📍 '+esc(o.direccion)+(o.barrio?" · "+esc(o.barrio):"")+'</div>'+
+   '<div class="g2">'+(o.direccion?'<a class="btn o s" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.direccion+" "+(o.barrio||""))+'">Abrir mapa</a>':"")+
+   (tel?'<a class="btn o s" href="tel:'+esc(tel)+'">Llamar</a>':"")+'</div>'+
+   (wa?'<a class="btn wa s" target="_blank" rel="noopener" href="https://wa.me/'+esc(wa)+'">WhatsApp al cliente</a>':"")+'</div>'+
+   '<div class="card"><h3>Estado</h3><div class="est">'+ESTADOS.map(function(e){return '<button class="btn o '+(o.estado===e[0]?"act":"")+'" data-e="'+e[0]+'">'+e[1]+'</button>'}).join("")+'</div>'+
+   (sinFotos?'<div class="warn">Para marcarla como solucionada o cerrada, primero sube al menos una foto.</div>':"")+'<div class="err" id="e-er"></div></div>'+
+   '<div class="card"><h3>Fotos de la instalación ('+(o.listaFotos?o.listaFotos.length:0)+'/7)</h3>'+
+   '<div class="fotos">'+(o.listaFotos||[]).map(function(u){return '<img src="'+esc(u)+'" alt="Foto">'}).join("")+'</div>'+
+   '<input id="foto" type="file" accept="image/*" capture="environment" class="hide"><button class="btn" id="b-foto">📷 Tomar o subir foto</button><div class="err" id="f-er"></div></div>'+
+   '<div class="card"><h3>Firma del cliente</h3>'+
+   (o.firmaUrl?'<img src="'+esc(o.firmaUrl)+'" alt="Firma" style="max-width:100%;border:1px solid var(--line);border-radius:10px;margin-top:8px"><p class="ok" style="margin-top:6px">Firmado</p>':"")+
+   '<p class="mut">'+(o.firmaUrl?"Puedes firmar de nuevo si hace falta:":"Pídele al cliente que firme aquí con el dedo:")+'</p>'+
+   '<canvas id="firma" width="600" height="340"></canvas>'+
+   '<div class="g2"><button class="btn o s" id="f-borrar">Borrar</button><button class="btn s" id="f-ok">Guardar firma</button></div>'+
+   '<button class="btn o s" id="f-enlace">Enviarle un enlace para firmar</button><div id="f-res"></div></div>';
+  Array.prototype.forEach.call(g("det").querySelectorAll("[data-e]"),function(b){b.onclick=function(){cambiarEstado(o.id,b.getAttribute("data-e"))}});
+  g("b-foto").onclick=function(){g("foto").click()};
+  g("foto").onchange=function(){
+    var f=g("foto").files[0];if(!f)return;
+    g("b-foto").disabled=true;g("b-foto").textContent="Subiendo…";g("f-er").textContent="";
+    reducir(f).then(function(b){var fd=new FormData();fd.append("archivo",b,"foto.jpg");return api("/instalador/ordenes/"+encodeURIComponent(o.id)+"/fotos",fd)}).then(function(r){
+      if(r.status===401){sesionVencida();return}
+      if(!r.ok){g("b-foto").disabled=false;g("b-foto").textContent="📷 Tomar o subir foto";g("f-er").textContent=(r.d&&r.d.error)||"No se pudo subir la foto.";return}
+      detalle(o.id);
+    }).catch(function(){g("b-foto").disabled=false;g("b-foto").textContent="📷 Tomar o subir foto";g("f-er").textContent="Sin conexión."});
+  };
+  firmaCanvas(o);
+}
+function cambiarEstado(id,est){
+  g("e-er").textContent="";
+  api("/instalador/ordenes/"+encodeURIComponent(id)+"/estado",{estado:est},"PATCH").then(function(r){
+    if(r.status===401){sesionVencida();return}
+    if(!r.ok){g("e-er").textContent=(r.d&&r.d.error)||"No se pudo cambiar el estado.";return}
+    detalle(id);
+  }).catch(function(){g("e-er").textContent="Sin conexión."});
+}
+function firmaCanvas(o){
+  var cv=g("firma"),ctx=null,dib=false,hay=false;
+  try{ctx=cv.getContext("2d")}catch(e){}
+  if(ctx){ctx.lineWidth=4;ctx.lineCap="round";ctx.strokeStyle="#111"}
+  function pos(e){var r=cv.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[(t.clientX-r.left)*cv.width/r.width,(t.clientY-r.top)*cv.height/r.height]}
+  function ini(e){if(!ctx)return;dib=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p[0],p[1]);e.preventDefault()}
+  function mov(e){if(!dib||!ctx)return;var p=pos(e);ctx.lineTo(p[0],p[1]);ctx.stroke();hay=true;e.preventDefault()}
+  function fin(){dib=false}
+  ["mousedown","touchstart"].forEach(function(n){cv.addEventListener(n,ini,{passive:false})});
+  ["mousemove","touchmove"].forEach(function(n){cv.addEventListener(n,mov,{passive:false})});
+  ["mouseup","mouseleave","touchend"].forEach(function(n){cv.addEventListener(n,fin)});
+  g("f-borrar").onclick=function(){if(ctx)ctx.clearRect(0,0,cv.width,cv.height);hay=false;g("f-res").innerHTML=""};
+  g("f-ok").onclick=function(){
+    if(!hay){g("f-res").innerHTML='<div class="err">Pídele al cliente que firme primero.</div>';return}
+    g("f-ok").disabled=true;
+    var out=document.createElement("canvas");out.width=cv.width;out.height=cv.height;var x=out.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,out.width,out.height);x.drawImage(cv,0,0);
+    out.toBlob(function(b){
+      var fd=new FormData();fd.append("archivo",b,"firma.png");
+      api("/instalador/ordenes/"+encodeURIComponent(o.id)+"/firma",fd).then(function(r){
+        g("f-ok").disabled=false;
+        if(r.status===401){sesionVencida();return}
+        if(!r.ok){g("f-res").innerHTML='<div class="err">'+esc((r.d&&r.d.error)||"No se pudo guardar la firma.")+'</div>';return}
+        detalle(o.id);
+      }).catch(function(){g("f-ok").disabled=false;g("f-res").innerHTML='<div class="err">Sin conexión.</div>'});
+    },"image/png");
+  };
+  g("f-enlace").onclick=function(){
+    api("/instalador/ordenes/"+encodeURIComponent(o.id)+"/enlace-firma",{}).then(function(r){
+      if(!r.ok||!r.d.url){g("f-res").innerHTML='<div class="err">No se pudo crear el enlace.</div>';return}
+      var url=location.origin+r.d.url,tel=((o.cliente&&(o.cliente.whatsapp||o.cliente.telefono))||"").replace(/\D/g,"");
+      var msg="Hola, firma tu instalación en este enlace: "+url;
+      g("f-res").innerHTML='<div class="link">'+esc(url)+'</div><a class="btn wa s" target="_blank" rel="noopener" href="https://wa.me/'+tel+'?text='+encodeURIComponent(msg)+'">Enviar por WhatsApp</a>';
+    }).catch(function(){g("f-res").innerHTML='<div class="err">Sin conexión.</div>'});
   };
 }
 
-if(TOKEN)inicio();else entrar();
-window.__inst={entrar:entrar,inicio:inicio};
+/* ---- Nuevo cliente (formulario completo) ---- */
+function listaDe(d){return Array.isArray(d)?d:(d&&(d.items||d.data))||[]}
+function opciones(arr,vacio){return '<option value="">'+vacio+'</option>'+arr.map(function(x){return '<option value="'+esc(x.id)+'" data-m="'+esc(x.municipioId||"")+'">'+esc(x.nombre)+'</option>'}).join("")}
+function formCliente(){
+  var hoy=new Date().toISOString().slice(0,10);
+  vista(cabecera()+'<div class="card"><b>Registrar un cliente</b><p class="sub" style="text-align:left;margin:4px 0 0">Los campos con * son obligatorios.</p>'+
+   '<div class="g2"><div><label for="c-ti">Tipo de documento</label><select id="c-ti"><option value="CC">Cédula (CC)</option><option value="CE">Cédula extranjería (CE)</option><option value="NIT">NIT</option><option value="TI">Tarjeta identidad (TI)</option><option value="PASAPORTE">Pasaporte</option></select></div>'+
+   '<div><label for="c-doc">Documento *</label><input id="c-doc" inputmode="numeric" autocomplete="off"></div></div>'+
+   '<label for="c-nom">Nombre completo *</label><input id="c-nom" autocomplete="off">'+
+   '<label for="c-nac">Fecha de nacimiento</label><input id="c-nac" type="date">'+
+   '<div class="g2"><div><label for="c-wa">WhatsApp</label><input id="c-wa" inputmode="tel"></div><div><label for="c-tel">Teléfono</label><input id="c-tel" inputmode="tel"></div></div>'+
+   '<label for="c-tel2">Otro teléfono</label><input id="c-tel2" inputmode="tel">'+
+   '<label for="c-cor">Correo</label><input id="c-cor" type="email" inputmode="email" autocomplete="off">'+
+   '<label for="c-mun">Municipio</label><select id="c-mun"><option value="">Cargando…</option></select>'+
+   '<label for="c-bar">Barrio</label><select id="c-bar"><option value="">Cargando…</option></select>'+
+   '<label for="c-dir">Dirección</label><input id="c-dir" autocomplete="off">'+
+   '<label for="c-vrd">Corregimiento / vereda</label><input id="c-vrd" autocomplete="off">'+
+   '<label for="c-est">Estrato</label><select id="c-est"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>'+
+   '<button class="btn o s" id="c-gps" type="button">📍 Usar mi ubicación</button><div class="mut" id="c-gps-t"></div>'+
+   '<label for="c-fin">Fecha de instalación</label><input id="c-fin" type="date" value="'+hoy+'">'+
+   '<label for="c-onu">Serial de la ONU/ONT</label><input id="c-onu" autocomplete="off" autocapitalize="characters">'+
+   '<div class="g2"><div><label for="c-olt">OLT</label><input id="c-olt" autocomplete="off"></div><div><label for="c-tar">Tarjeta</label><input id="c-tar" autocomplete="off"></div></div>'+
+   '<label for="c-pon">Puerto PON</label><input id="c-pon" autocomplete="off">'+
+   '<label for="c-obs">Observaciones</label><textarea id="c-obs" rows="3"></textarea>'+
+   '<div class="err" id="c-er"></div><button class="btn" id="c-go">Registrar cliente</button><div id="c-ok"></div></div>');
+  enganchar();
+  var MUN=[],BAR=[];
+  function pintarBarrios(){var m=g("c-mun").value;g("c-bar").innerHTML=opciones(BAR.filter(function(b){return !m||!b.municipioId||b.municipioId===m}),"— Selecciona —")}
+  api("/municipios").then(function(r){MUN=listaDe(r.d);g("c-mun").innerHTML=opciones(MUN,"— Selecciona —")}).catch(function(){g("c-mun").innerHTML=opciones([],"No se pudo cargar")});
+  api("/barrios").then(function(r){BAR=listaDe(r.d);pintarBarrios()}).catch(function(){g("c-bar").innerHTML=opciones([],"No se pudo cargar")});
+  g("c-mun").onchange=pintarBarrios;
+  GEO=null;
+  g("c-gps").onclick=function(){
+    if(!navigator.geolocation){g("c-gps-t").textContent="Tu celular no permite ubicación.";return}
+    g("c-gps-t").textContent="Buscando ubicación…";
+    navigator.geolocation.getCurrentPosition(function(p){GEO={lat:p.coords.latitude,lng:p.coords.longitude};g("c-gps-t").textContent="Ubicación guardada ("+GEO.lat.toFixed(5)+", "+GEO.lng.toFixed(5)+")"},
+      function(){g("c-gps-t").textContent="No pudimos obtener la ubicación. Revisa el permiso del navegador."},{enableHighAccuracy:true,timeout:15000});
+  };
+  g("c-go").onclick=function(){
+    var d={tipoIdentificacion:g("c-ti").value,documento:g("c-doc").value.trim(),nombre:g("c-nom").value.trim(),fechaNacimiento:g("c-nac").value,
+      whatsapp:g("c-wa").value.trim(),telefono:g("c-tel").value.trim(),telefono2:g("c-tel2").value.trim(),correo:g("c-cor").value.trim(),
+      municipioId:g("c-mun").value,barrioId:g("c-bar").value,direccion:g("c-dir").value.trim(),corregimientoVereda:g("c-vrd").value.trim(),
+      fechaInstalacion:g("c-fin").value,onuOnt:g("c-onu").value.trim(),oltNombre:g("c-olt").value.trim(),oltTarjeta:g("c-tar").value.trim(),
+      oltPuertoPon:g("c-pon").value.trim(),observaciones:g("c-obs").value.trim()};
+    if(!d.nombre||!d.documento){g("c-er").textContent="El nombre y el documento son obligatorios.";return}
+    Object.keys(d).forEach(function(k){if(!d[k])delete d[k]});
+    var est=g("c-est").value;if(est)d.estrato=parseInt(est,10);
+    if(GEO){d.latitud=GEO.lat;d.longitud=GEO.lng}
+    g("c-go").disabled=true;g("c-er").textContent="";
+    api("/clientes",d).then(function(r){
+      g("c-go").disabled=false;
+      if(r.status===401){sesionVencida();return}
+      if(!r.ok){g("c-er").textContent=(r.d&&typeof r.d.error==="string"&&r.d.error)||"No pudimos registrarlo. Revisa los datos (¿ya existe ese documento?).";return}
+      vista(cabecera()+'<div class="card"><p class="ok">Cliente registrado: '+esc(r.d.nombre||d.nombre)+'</p><button class="btn" id="otro">Registrar otro cliente</button></div>');
+      enganchar();g("otro").onclick=formCliente;
+    }).catch(function(){g("c-go").disabled=false;g("c-er").textContent="Sin conexión. Intenta de nuevo."});
+  };
+}
+
+/* ---- Enlace de registro ---- */
+function enlace(){
+  vista(cabecera()+'<div class="card"><b>Enlace de registro</b><p class="sub" style="text-align:left;margin:4px 0 0">Envíaselo al cliente: él mismo llena sus datos.</p>'+
+    '<button class="btn" id="b-link">Obtener enlace</button><div id="r-link"></div></div>');
+  enganchar();
+  g("b-link").onclick=function(){
+    var b=g("b-link");b.disabled=true;b.textContent="Un momento…";
+    api("/clientes/link-registro",{}).then(function(r){
+      b.disabled=false;b.textContent="Obtener enlace";
+      if(r.status===401){sesionVencida();return}
+      if(!r.ok||!r.d.url){g("r-link").innerHTML='<div class="err">No pudimos generar el enlace.</div>';return}
+      var url=location.origin+r.d.url,msg="Hola, para registrarte como cliente llena tus datos en este enlace: "+url;
+      g("r-link").innerHTML='<div class="link">'+esc(url)+'</div>'+
+        '<a class="btn wa" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(msg)+'">Enviar por WhatsApp</a>'+
+        '<button class="btn o" id="cop">Copiar enlace</button><div class="err" id="cop-m"></div>';
+      g("cop").onclick=function(){
+        var ok=function(){g("cop-m").className="ok";g("cop-m").textContent="Enlace copiado"};
+        var no=function(){g("cop-m").textContent="No se pudo copiar: mantén presionado el enlace y cópialo."};
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(ok,no);else no();
+      };
+    }).catch(function(){b.disabled=false;b.textContent="Obtener enlace";g("r-link").innerHTML='<div class="err">Sin conexión.</div>'});
+  };
+}
+
+if(TOKEN)principal();else entrar();
 })();
 </script>
 </body>

@@ -21,15 +21,21 @@ const BASE = process.env.PROBAR_BASE || "http://127.0.0.1:4000";
   let fallos = 0;
   const t = async (metodo, ruta, cuerpo, esperado) => {
     const r = await fetch(BASE + ruta, { method: metodo, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
-    const ok = esperado === "pasa" ? r.status !== 403 && r.status !== 401 : r.status === 403;
+    const ok = esperado === "pasa" ? r.status !== 403 && r.status !== 401 : esperado === "pasa-404" ? r.status === 404 : r.status === 403;
     if (!ok) fallos++;
     console.log(`${ok ? "[SI]" : "[NO]"} ${esperado.padEnd(9)} ${metodo.padEnd(6)} ${ruta.padEnd(34)} -> ${r.status}`);
   };
   console.log("--- debe PASAR ---");
   await t("GET", "/api/auth/me", null, "pasa");
   await t("POST", "/api/clientes/link-registro", {}, "pasa");
+  await t("GET", "/api/instalador/ordenes", null, "pasa");
+  await t("GET", "/api/municipios", null, "pasa");
+  await t("GET", "/api/barrios", null, "pasa");
+  console.log("--- un ticket que NO es suyo debe dar 404 (no se revela si existe) ---");
+  await t("GET", "/api/instalador/ordenes/ticket-inexistente-o-ajeno", null, "pasa-404");
+  await t("PATCH", "/api/instalador/ordenes/ticket-inexistente-o-ajeno/estado", { estado: "CERRADO" }, "pasa-404");
   console.log("--- debe estar BLOQUEADO (403) ---");
-  for (const r of ["/api/clientes", "/api/clientes/exportar", "/api/clientes/123", "/api/facturas", "/api/contratos", "/api/dashboard", "/api/usuarios", "/api/empresa", "/api/morosos-mikrotik", "/api/contabilidad", "/api/auditoria", "/api/servidores", "/api/chat-whatsapp", "/api/planes", "/api/solicitudes", "/api/tickets", "/api/pasarelas", "/api/sistema"])
+  for (const r of ["/api/clientes", "/api/clientes/exportar", "/api/clientes/123", "/api/facturas", "/api/contratos", "/api/dashboard", "/api/usuarios", "/api/empresa", "/api/morosos-mikrotik", "/api/contabilidad", "/api/auditoria", "/api/servidores", "/api/chat-whatsapp", "/api/planes", "/api/solicitudes", "/api/tickets", "/api/pasarelas", "/api/sistema", "/api/tickets", "/api/tecnicos", "/api/planes", "/api/contratos/123", "/api/tickets/123"])
     await t("GET", r, null, "bloqueado");
   await t("PUT", "/api/clientes/x", {}, "bloqueado");
   await t("DELETE", "/api/clientes/x", null, "bloqueado");
