@@ -50,10 +50,16 @@ function vista(t: any, conDetalle = false) {
   return conDetalle ? { ...base, descripcion: t.descripcion, listaFotos: fotosDe(t), firmaUrl: t.firmaUrl ?? null } : base;
 }
 
+/** Id del usuario que llama (el token puede guardarlo como id, sub o userId). */
+function uidDe(req: AuthedRequest): string {
+  const u: any = req.user ?? {};
+  return String(u.id ?? u.sub ?? u.userId ?? u.usuarioId ?? "__nadie__");
+}
+
 /** Busca el ticket SOLO si está asignado al usuario que llama. Si no, 404 (no se revela si existe). */
 async function ticketPropio(req: AuthedRequest, res: any) {
   const ticket = await prisma.ticket.findFirst({
-    where: { id: String(req.params.id), tecnicoId: req.user?.id ?? "__nadie__", ...tenantWhere(req) },
+    where: { id: String(req.params.id), tecnicoId: uidDe(req), ...tenantWhere(req) },
     include: { cliente: true },
   });
   if (!ticket) { res.status(404).json({ error: "Instalación no encontrada" }); return null; }
@@ -63,7 +69,7 @@ async function ticketPropio(req: AuthedRequest, res: any) {
 router.get("/ordenes", async (req: AuthedRequest, res) => {
   const verTodas = String(req.query.todas ?? "") === "1";
   const items = await prisma.ticket.findMany({
-    where: { tecnicoId: req.user?.id ?? "__nadie__", ...(verTodas ? {} : { estado: { notIn: ["CERRADO"] } }), ...tenantWhere(req) },
+    where: { tecnicoId: uidDe(req), ...(verTodas ? {} : { estado: { notIn: ["CERRADO"] } }), ...tenantWhere(req) },
     include: { cliente: true },
     orderBy: { createdAt: "desc" },
     take: 100,
