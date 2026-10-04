@@ -25,26 +25,30 @@ const { obtenerConfigTenant } = require(B + "/lib/tenantConfig");
       where: { facturacionAutomatica: true, estado: { in: ["HABILITADO", "DESHABILITADO"] } },
       select: { id: true, numero: true, estado: true, precioMensual: true, cliente: { select: { nombre: true } } },
     });
-    const r = { facturaHoy: [], yaTiene: [], noSuspendido: [], noAbierta: [], facturaConCambio: [] };
+    const r = { facturaHoy: [], yaTiene: [], noSuspendido: [], noAbierta: [], facturaConCambio: [], moroso1: [] };
     for (const c of contratos) {
       const ya = await prisma.factura.findFirst({ where: { contratoId: c.id, fechaEmision: { gte: desdeMes } }, select: { id: true } });
       if (ya) { r.yaTiene.push(c); continue; }
-      const abierta = await prisma.factura.findFirst({ where: { contratoId: c.id, estado: { in: ["PENDIENTE", "VENCIDA"] }, fechaEmision: { lt: desdeMes } }, select: { id: true } });
+      const nAbiertas = await prisma.factura.count({ where: { contratoId: c.id, estado: { in: ["PENDIENTE", "VENCIDA"] }, fechaEmision: { lt: desdeMes } } });
+      const abierta = nAbiertas > 0; c.nAbiertas = nAbiertas;
       const bloqueaEstado = c.estado === "DESHABILITADO" && !factDes;
-      const bloqueaAbierta = !!abierta && !conAbiertas;
+      const conTope = flags["contratos.facturarMorososConTope"] === true;
+      const bloqueaAbierta = !conAbiertas && nAbiertas > (conTope ? 1 : 0);
+      if (abierta && !bloqueaAbierta && !bloqueaEstado && !conAbiertas) r.moroso1.push(c);
       if (bloqueaEstado) r.noSuspendido.push(c);
       else if (bloqueaAbierta) r.noAbierta.push(c);
       else r.facturaHoy.push(c);
       // con ambos interruptores en SÍ
-      if (bloqueaEstado || bloqueaAbierta) r.facturaConCambio.push(c);
+      if (bloqueaEstado || (!conAbiertas && nAbiertas > 0 && nAbiertas <= 1 && !conTope)) r.facturaConCambio.push(c);
     }
     const lin = (c) => `   #${c.numero} ${c.cliente.nombre} — $${Number(c.precioMensual).toLocaleString("es-CO")} (${c.estado})`;
     const mostrar = (titulo, arr) => { console.log(`\n${titulo}: ${arr.length}`); arr.slice(0, 40).forEach((c) => console.log(lin(c))); if (arr.length > 40) console.log(`   … y ${arr.length - 40} más`); };
     mostrar("YA tienen factura de este mes (NO se duplica nunca)", r.yaTiene);
     mostrar("Se facturarían con la configuración ACTUAL", r.facturaHoy);
     mostrar("NO se facturan hoy por estar DESHABILITADOS (suspendidos)", r.noSuspendido);
-    mostrar("NO se facturan hoy por tener una factura abierta de meses anteriores", r.noAbierta);
-    console.log(`\nSi activas los dos interruptores se agregarían ${r.facturaConCambio.length} contratos más, sin duplicar a los que ya tienen factura de este mes.`);
+    mostrar("NO se facturan hoy por tener facturas abiertas de meses anteriores (con tope: 2 o más)", r.noAbierta);
+    console.log(`\nTope de facturas abiertas: ${flags["contratos.facturarMorososConTope"] === true ? "ENCENDIDO (hasta 1 abierta)" : "apagado"}.`);
+    console.log(`Con el tope encendido se agregarían ${r.facturaConCambio.length} contratos que hoy se saltan por tener exactamente 1 factura abierta. Los que tienen 2 o más siguen sin facturarse. Nunca se duplica el mes.`);
   });
   process.exit(0);
 })().catch((e) => { console.error("Error:", e.message); process.exit(1); });
