@@ -20,7 +20,7 @@ mkdir -p "$R/backend/public/cliente"
 python3 - "$HERE/../../portal-cliente/index.html" "$R/backend/public/cliente/index.html" <<'PY'
 import re, sys
 s = open(sys.argv[1], encoding="utf-8").read()
-s, n = re.subn(r"var DEMO = \{[^\n]*\};", "var DEMO = null;", s, count=1)
+s, n = re.subn(r"var DEMO = \{.*?promos:\[\][^;]*\};", "var DEMO = null;", s, count=1, flags=re.S)
 assert n == 1, "no encontré el bloque DEMO"
 open(sys.argv[2], "w", encoding="utf-8").write(s)
 PY
