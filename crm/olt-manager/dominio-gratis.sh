@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # EN EL VPS, dentro de crm/olt-manager. Dos formas de tener HTTPS sin comprar dominio:
-#   bash dominio-gratis.sh duckdns <subdominio> <token>   -> https://<subdominio>.duckdns.org  (FIJO, recomendado)
+#   bash dominio-gratis.sh duckdns <subdominio> <token> [ip_de_conectapro]   -> https://<subdominio>.duckdns.org  (FIJO, recomendado)
+#     con ip_de_conectapro, la API /api/* (tipo SmartOLT) solo responde a esa IP.
 #   bash dominio-gratis.sh cloudflared                    -> https://xxxx.trycloudflare.com    (CAMBIA al reiniciar)
 # DuckDNS: crea cuenta gratis en https://www.duckdns.org (entra con Google/GitHub), crea un subdominio y copia el token.
 set -euo pipefail
@@ -21,7 +22,13 @@ duckdns)
 */5 * * * * root . /etc/duckdns.env && curl -fsS "https://www.duckdns.org/update?domains=$SUB&token=$TOKEN&ip=" >/dev/null 2>&1
 CRON
   DOM="$SUB.duckdns.org"
-  printf '%s {\n\treverse_proxy 127.0.0.1:3100\n}\n' "$DOM" > Caddyfile
+  CP_IP="${4:-}"
+  if [ -n "$CP_IP" ]; then
+    [[ "$CP_IP" =~ ^[0-9.]+$ ]] || { echo "IP de ConectaPro inválida"; exit 1; }
+    printf '%s {\n\t@apiajena {\n\t\tpath /api/*\n\t\tnot remote_ip %s\n\t}\n\trespond @apiajena 403\n\treverse_proxy 127.0.0.1:3100\n}\n' "$DOM" "$CP_IP" > Caddyfile
+  else
+    printf '%s {\n\treverse_proxy 127.0.0.1:3100\n}\n' "$DOM" > Caddyfile
+  fi
   sudo docker compose up -d caddy
   sed -i '/^# DOMINIO=/d' .env; echo "# DOMINIO=$DOM" >> .env
   echo "Listo: https://$DOM  (el certificado tarda ~1 minuto la primera vez)."
