@@ -29,7 +29,7 @@ CRON
   else
     printf '%s {\n\treverse_proxy 127.0.0.1:3100\n}\n' "$DOM" > Caddyfile
   fi
-  sudo docker compose up -d caddy
+  sudo docker compose up -d caddy && sudo docker compose restart caddy   # recarga el Caddyfile nuevo
   sed -i '/^# DOMINIO=/d' .env; echo "# DOMINIO=$DOM" >> .env
   echo "Listo: https://$DOM  (el certificado tarda ~1 minuto la primera vez)."
   echo "En ConectaPro usa OLT_MANAGER_URL=https://$DOM"
