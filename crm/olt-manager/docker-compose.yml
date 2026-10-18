@@ -3,12 +3,14 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    # Red del host: así el panel alcanza los túneles inversos hacia las OLT (127.0.0.1:22xx).
+    # Escucha solo en 127.0.0.1; Caddy (o el túnel de Cloudflare) publica el HTTPS.
+    network_mode: host
     environment:
       DATA_DIR: /data
+      HOST: 127.0.0.1
     volumes:
       - ./data:/data
-    ports:
-      - "127.0.0.1:3100:3100"   # solo local; Caddy publica el HTTPS
   caddy:
     image: caddy:2
     restart: unless-stopped

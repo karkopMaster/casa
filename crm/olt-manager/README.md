@@ -22,6 +22,13 @@ sudo docker compose run --rm --entrypoint node olt-manager dist/admin.js apikey 
 DNS: registro A de `olt.tudominio.com` → IP del VPS. La red del VPS debe llegar por SSH a la IP de cada OLT
 (VPN/túnel/IP pública con firewall que solo permita al VPS).
 
+## Dominio gratis y túnel inverso
+- **Dominio gratis fijo (recomendado):** cuenta en duckdns.org → `bash dominio-gratis.sh duckdns <subdominio> <token>`
+  → `https://<subdominio>.duckdns.org` con HTTPS automático. (Alternativa sin cuenta: `bash dominio-gratis.sh cloudflared`, pero la dirección cambia al reiniciar.)
+- **Túnel inverso hacia las OLT** (si el VPS no llega a ellas): en el VPS no hay que abrir nada; en un equipo de tu red:
+  `bash tunel-olt.sh instalar 158.69.205.211 192.168.88.10:2201` → te da una llave → en el VPS `bash preparar-tunel-vps.sh "<llave>"`
+  → `sudo systemctl start tunel-olt`. En el panel registra la OLT con host `127.0.0.1` y puerto `2201`.
+
 ## Migrar desde SmartOLT (opcional, una vez)
 `SMARTOLT_URL=... SMARTOLT_KEY=... npm run importar-smartolt -- <id_olt_local> 0 --aplicar`
 Conserva el *unique external ID*, así los contratos de ConectaPro no cambian.

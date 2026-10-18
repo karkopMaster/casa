@@ -15,6 +15,7 @@ fi
 sed -i "s|olt.tudominio.com|$DOM|" Caddyfile
 # Firewall: SSH, web. El puerto 3100 queda solo local.
 sudo ufw allow OpenSSH >/dev/null 2>&1 || true; sudo ufw allow 80,443/tcp >/dev/null 2>&1 || true; sudo ufw --force enable >/dev/null 2>&1 || true
+mkdir -p data && sudo chown 1000:1000 data   # el contenedor corre como usuario "node"
 sudo docker compose up -d --build
 echo
 echo "Listo. Falta crear el usuario del panel y la API key:"

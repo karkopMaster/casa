@@ -42,7 +42,7 @@ app.use("/api", smartolt);          // compatible con SmartOLT (X-Token)
 app.use("/panel-api", panel);        // API del panel (cookie)
 app.use(express.static(path.join(__dirname, "../public")));
 
-app.listen(config.port, "0.0.0.0", () => console.log(`olt-manager en :${config.port}`));
+app.listen(config.port, process.env.HOST || "0.0.0.0", () => console.log(`olt-manager en :${config.port}`));
 
 // Sondeo periódico de pendientes y estados.
 let corriendo = false;
