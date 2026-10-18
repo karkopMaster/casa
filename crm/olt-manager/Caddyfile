@@ -1,0 +1,4 @@
+# Cambia olt.tudominio.com por el subdominio que apunta a la IP del VPS (registro A).
+olt.tudominio.com {
+	reverse_proxy 127.0.0.1:3100
+}

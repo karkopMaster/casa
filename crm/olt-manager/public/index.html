@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OLT Manager</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--tx:#1b2430;--mut:#6b7686;--bd:#dde3ea;--pri:#1f6feb;--ok:#1a9d55;--warn:#d98e04;--bad:#d33}
+@media (prefers-color-scheme:dark){:root{--bg:#10151c;--card:#18202a;--tx:#e6ebf1;--mut:#93a0b1;--bd:#2a3542}}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;gap:8px;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--bd);flex-wrap:wrap}
+header h1{font-size:16px;margin:0 12px 0 0}
+nav button{background:none;border:0;padding:8px 12px;border-radius:6px;cursor:pointer;color:var(--mut);font:inherit}
+nav button.on{background:var(--pri);color:#fff}
+main{padding:16px;max-width:1200px;margin:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px}
+.card b{display:block;font-size:22px}.card span{color:var(--mut);font-size:12px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--bd);font-size:13px}th{color:var(--mut);font-weight:600}
+.tw{overflow-x:auto}
+input,select,button.b{font:inherit;padding:7px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--tx)}
+button.b{cursor:pointer}button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}button.dng{color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.pill{padding:2px 8px;border-radius:10px;font-size:12px;color:#fff}.online,.Very{background:var(--ok)}.offline,.Critical{background:var(--bad)}.Warning{background:var(--warn)}.desconocido,.NA{background:#8a94a3}
+#login{max-width:320px;margin:15vh auto;display:grid;gap:8px}
+#msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 14px;border-radius:6px;display:none}
+dialog{border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);max-width:420px;width:92%}
+dialog label{display:block;margin:8px 0 2px;font-size:12px;color:var(--mut)}dialog input,dialog select{width:100%}
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <h2>OLT Manager</h2>
+  <input id="u" placeholder="Usuario" autocomplete="username">
+  <input id="p" type="password" placeholder="Clave" autocomplete="current-password">
+  <button class="b pri" id="entrar">Entrar</button>
+</div>
+<div id="app" hidden>
+<header><h1>OLT Manager</h1>
+<nav id="nav"></nav><span style="flex:1"></span><button class="b" id="salir">Salir</button></header>
+<main id="vista"></main>
+</div>
+<div id="msg"></div>
+<dialog id="dlg"><form method="dialog" id="frm"></form></dialog>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function aviso(t){const m=$('#msg');m.textContent=t;m.style.display='block';clearTimeout(aviso.t);aviso.t=setTimeout(()=>m.style.display='none',4000)}
+async function api(ruta,met='GET',cuerpo){
+  const r=await fetch('/panel-api'+ruta,{method:met,headers:cuerpo?{'Content-Type':'application/json'}:{},body:cuerpo?JSON.stringify(cuerpo):undefined,credentials:'include'});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401){mostrarLogin();throw new Error('Sesión vencida')}
+  if(!r.ok)throw new Error(j.error||('Error '+r.status));return j}
+const TABS=[['resumen','Resumen'],['pendientes','Por autorizar'],['onus','ONU'],['olts','OLT'],['bitacora','Bitácora']];
+let tab='resumen';
+function mostrarLogin(){$('#app').hidden=true;$('#login').hidden=false}
+function pintarNav(){$('#nav').innerHTML=TABS.map(([k,n])=>`<button data-k="${k}" class="${k===tab?'on':''}">${n}</button>`).join('')}
+$('#nav').onclick=e=>{const k=e.target.dataset.k;if(k){tab=k;pintarNav();cargar()}};
+$('#entrar').onclick=async()=>{try{const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({usuario:$('#u').value,clave:$('#p').value})});
+  if(!r.ok)throw new Error((await r.json()).error);$('#login').hidden=true;$('#app').hidden=false;pintarNav();cargar()}catch(e){aviso(e.message)}};
+$('#salir').onclick=async()=>{await fetch('/auth/salir',{method:'POST',credentials:'include'});mostrarLogin()};
+const pill=(t,c)=>`<span class="pill ${esc(c||t).replace(/\s|\//g,'')}">${esc(t)}</span>`;
+function form(titulo,campos,alEnviar){
+  $('#frm').innerHTML=`<h3>${esc(titulo)}</h3>`+campos.map(c=>`<label>${esc(c.l)}</label>`+(c.opts?`<select name="${c.n}">${c.opts.map(o=>`<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select>`:`<input name="${c.n}" type="${c.t||'text'}" value="${esc(c.v||'')}" ${c.req===false?'':'required'}>`)).join('')+
+  `<div class="row" style="margin-top:12px"><button class="b pri" value="ok">Guardar</button><button class="b" value="x" formnovalidate>Cancelar</button></div>`;
+  $('#dlg').showModal();
+  $('#frm').onsubmit=async e=>{if(e.submitter.value!=='ok')return;try{await alEnviar(Object.fromEntries(new FormData($('#frm'))));cargar()}catch(er){aviso(er.message)}}}
+async function cargar(){
+  const v=$('#vista');v.innerHTML='Cargando…';
+  try{
+  if(tab==='resumen'){const r=await api('/resumen');const k=[['OLT',r.olts],['ONU',r.onus],['En línea',r.online],['Sin conexión',r.offline],['Deshabilitadas',r.deshabilitadas],['Por autorizar',r.pendientes],['Señal crítica',r.senalCritica]];
+    v.innerHTML='<div class="cards">'+k.map(([n,x])=>`<div class="card"><b>${x}</b><span>${n}</span></div>`).join('')+'</div>'}
+  if(tab==='pendientes'){const [p,o]=await Promise.all([api('/pendientes'),api('/olts')]);
+    v.innerHTML=`<div class="tw"><table><tr><th>OLT</th><th>Puerto</th><th>SN</th><th>Equipo</th><th>Visto</th><th></th></tr>`+
+    (p.items.map(x=>`<tr><td>${esc(x.olt)}</td><td>${x.frame}/${x.slot}/${x.port}</td><td>${esc(x.sn)}</td><td>${esc(x.equipo)}</td><td>${esc(x.visto)}</td><td><button class="b pri" data-a="${esc(x.sn)}" data-o="${x.olt_id}">Autorizar</button></td></tr>`).join('')||'<tr><td colspan=6>No hay ONU esperando.</td></tr>')+'</table></div>';
+    v.onclick=async e=>{const sn=e.target.dataset.a;if(!sn)return;const oltId=+e.target.dataset.o;const pf=(await api(`/olts/${oltId}/perfiles`)).items;
+      if(!pf.length)return aviso('Primero crea un perfil en la pestaña OLT');
+      form('Autorizar '+sn,[{n:'externalId',l:'ID externo (el del contrato en ConectaPro)'},{n:'nombre',l:'Nombre / cliente'},{n:'direccion',l:'Dirección',req:false},{n:'perfil',l:'Perfil',opts:pf.map(x=>[x.id,x.nombre])}],
+      async d=>{const x=pf.find(y=>y.id==d.perfil);await api('/onus/autorizar','POST',{oltId,sn,externalId:d.externalId,nombre:d.nombre,direccion:d.direccion,lineProfile:x.line_profile,srvProfile:x.srv_profile});aviso('ONU autorizada')})}}
+  if(tab==='onus'){v.innerHTML=`<div class="row"><input id="q" placeholder="Buscar por ID, SN, nombre o dirección" style="flex:1"></div><div class="tw" id="tb"></div>`;
+    const pintar=async()=>{const r=await api('/onus?q='+encodeURIComponent($('#q').value));
+      $('#tb').innerHTML=`<table><tr><th>ID externo</th><th>Nombre</th><th>OLT</th><th>Puerto</th><th>Estado</th><th>Admin</th><th>Rx (dBm)</th><th>Acciones</th></tr>`+
+      r.items.map(o=>`<tr><td>${esc(o.external_id)}</td><td>${esc(o.nombre)}<br><small>${esc(o.direccion)}</small></td><td>${esc(o.olt)}</td><td>${o.frame}/${o.slot}/${o.port}:${o.ont_id}</td><td>${pill(o.estado)}</td><td>${esc(o.admin_estado)}</td><td>${o.rx_onu??'—'} ${o.rx_onu!==null?pill(o.senal):''}</td>
+      <td><button class="b" data-x="senal" data-i="${esc(o.external_id)}">Señal</button> <button class="b" data-x="${o.admin_estado==='Enabled'?'desactivar':'activar'}" data-i="${esc(o.external_id)}">${o.admin_estado==='Enabled'?'Suspender':'Activar'}</button> <button class="b" data-x="reiniciar" data-i="${esc(o.external_id)}">Reiniciar</button> <button class="b dng" data-x="eliminar" data-i="${esc(o.external_id)}">Eliminar</button></td></tr>`).join('')+'</table>'};
+    $('#q').oninput=()=>{clearTimeout(pintar.t);pintar.t=setTimeout(pintar,300)};await pintar();
+    v.onclick=async e=>{const a=e.target.dataset.x,id=e.target.dataset.i;if(!a)return;
+      if(a==='eliminar'&&!confirm('¿Eliminar la ONU '+id+' de la OLT? No se puede deshacer.'))return;
+      if(a==='desactivar'&&!confirm('¿Suspender la ONU '+id+'? El cliente quedará sin internet.'))return;
+      try{aviso('Enviando a la OLT…');await api(`/onus/${encodeURIComponent(id)}/${a}`,'POST');aviso('Listo');pintar()}catch(er){aviso(er.message)}}}
+  if(tab==='olts'){const r=await api('/olts');
+    v.innerHTML=`<div class="row"><button class="b pri" id="nueva">Agregar OLT</button></div><div class="tw"><table><tr><th>Nombre</th><th>Host</th><th>Último sondeo</th><th>Error</th><th></th></tr>`+
+    r.items.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${esc(o.host)}:${o.puerto}</td><td>${esc(o.ultimo_sondeo||'—')}</td><td>${esc(o.ultimo_error||'')}</td><td><button class="b" data-s="${o.id}">Sondear</button> <button class="b" data-p="${o.id}">+ Perfil</button> <button class="b dng" data-d="${o.id}">Quitar</button></td></tr>`).join('')+'</table></div>';
+    $('#nueva').onclick=()=>form('Agregar OLT Huawei',[{n:'nombre',l:'Nombre'},{n:'host',l:'IP o dominio'},{n:'puerto',l:'Puerto SSH',t:'number',v:'22'},{n:'usuario',l:'Usuario SSH'},{n:'clave',l:'Clave SSH',t:'password'}],
+      async d=>{await api('/olts','POST',{...d,puerto:+d.puerto});aviso('OLT agregada')});
+    v.onclick=async e=>{const t=e.target.dataset;
+      if(t.s){try{aviso('Consultando la OLT…');const x=await api(`/olts/${t.s}/sondear`,'POST');aviso(`Listo: ${x.pendientes} por autorizar`);cargar()}catch(er){aviso(er.message);cargar()}}
+      if(t.p)form('Perfil de aprovisionamiento',[{n:'nombre',l:'Nombre (ej. Plan 100 Mb)'},{n:'line_profile',l:'ont-lineprofile-name en la OLT'},{n:'srv_profile',l:'ont-srvprofile-name en la OLT'}],async d=>{await api(`/olts/${t.p}/perfiles`,'POST',d);aviso('Perfil guardado')});
+      if(t.d&&confirm('¿Quitar esta OLT y sus ONU del panel? (No toca la OLT real)')){await api('/olts/'+t.d,'DELETE');cargar()}}}
+  if(tab==='bitacora'){const r=await api('/bitacora');v.innerHTML=`<div class="tw"><table><tr><th>Fecha</th><th>Quién</th><th>Acción</th><th>Detalle</th></tr>`+r.items.map(b=>`<tr><td>${esc(b.fecha)}</td><td>${esc(b.actor)}</td><td>${esc(b.accion)}${b.ok?'':' ❌'}</td><td>${esc(b.detalle)}</td></tr>`).join('')+'</table></div>'}
+  }catch(e){if(e.message!=='Sesión vencida')v.innerHTML='<p>'+esc(e.message)+'</p>'}}
+(async()=>{try{await api('/resumen');$('#app').hidden=false;pintarNav();cargar()}catch{mostrarLogin()}})();
+</script>
+</body>
+</html>
