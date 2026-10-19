@@ -15,6 +15,7 @@ BASE="${BASE:-/home/ubuntu}"
 APP="$BASE/contabilidad"; DATOS="$BASE/contabilidad-data"; ENVF="$BASE/contabilidad.env"; COPIAS="$BASE/backups-contabilidad"
 TS=$(date +%Y%m%d-%H%M%S); BK="$BASE/backups/pre-contabilidad-$TS"
 FALLOS=0; AVISOS=0
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 ok(){ echo "  [ok]    $*"; }
 av(){ echo "  [aviso] $*"; AVISOS=$((AVISOS+1)); }
 no(){ echo "  [FALLA] $*"; FALLOS=$((FALLOS+1)); }
@@ -57,6 +58,38 @@ if [ -r "$CADDYFILE" ]; then
 else no "no puedo leer el Caddyfile ($CADDYFILE). Indique la ruta: CADDYFILE=/ruta bash ..."; fi
 command -v sudo >/dev/null && { sudo -n true 2>/dev/null && ok "sudo sin contraseña" || av "sudo pedirá contraseña al recargar Caddy"; } || no "sudo no disponible"
 
+# Caddyfile candidato: se valida y se comprueba que el certificado del dominio no caiga en una política on_demand
+if [ -r "$CADDYFILE" ] && command -v caddy >/dev/null && [ "$FALLOS" = 0 ]; then
+BLOQUE="$TMP/bloque.txt"
+cat > "$BLOQUE" <<CADDY
+
+# >>> contabilidad (instalar-contabilidad.sh $TS)
+$DOMINIO {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+	}
+	reverse_proxy 127.0.0.1:$PUERTO
+}
+# <<< contabilidad
+CADDY
+cat "$CADDYFILE" "$BLOQUE" > "$TMP/Caddyfile.nuevo"
+  if caddy validate --config "$TMP/Caddyfile.nuevo" --adapter caddyfile >/dev/null 2>&1; then ok "el Caddyfile nuevo es válido"; else no "el Caddyfile nuevo no valida"; fi
+  caddy adapt --config "$TMP/Caddyfile.nuevo" --adapter caddyfile 2>/dev/null > "$TMP/nuevo.json" || true
+  python3 - "$TMP/nuevo.json" "$DOMINIO" <<'PY' && ok "certificado: el dominio no cae en una política on_demand" || no "el dominio caería en un certificado on_demand (comodín del CRM): use un dominio no cubierto por el comodín, p. ej. de otro dominio sin '*.' (ver cambiar-dominio-caddy.sh)"
+import json, sys
+cfg = json.load(open(sys.argv[1])); dom = sys.argv[2]
+pols = cfg.get("apps", {}).get("tls", {}).get("automation", {}).get("policies", [])
+def match(subj, name):
+    return subj == name or (subj.startswith("*.") and name.endswith(subj[1:]) and "." not in name[:-len(subj[1:])])
+first = next((i for i, p in enumerate(pols) if not p.get("subjects") or any(match(s, dom) for s in p["subjects"])), None)
+sys.exit(1 if first is not None and pols[first].get("on_demand") else 0)
+PY
+fi
+
 # DNS
 IPPUB=$(curl -s --max-time 5 https://api.ipify.org || true)
 IPDOM=$(getent ahostsv4 "$DOMINIO" 2>/dev/null | awk '{print $1; exit}' || true)
@@ -82,7 +115,6 @@ mkdir -p "$BK"; cp -a "$CADDYFILE" "$BK/Caddyfile.original"
 pm2 jlist 2>/dev/null | python3 -c 'import sys,json; [print(p["name"],p["pm2_env"]["status"]) for p in json.load(sys.stdin)]' > "$BK/pm2-antes.txt" || true
 ok "respaldo en $BK"
 
-TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 if [ -n "${TARBALL_LOCAL:-}" ]; then cp "$TARBALL_LOCAL" "$TMP/src.tgz"
 else curl -fsSL "https://github.com/karkopMaster/casa/archive/refs/heads/$RAMA.tar.gz" -o "$TMP/src.tgz"; fi
 tar xzf "$TMP/src.tgz" -C "$TMP" --wildcards '*/contabilidad/*'
@@ -121,28 +153,6 @@ echo "Listo. Quedan sin borrar: $APP, $DATOS, $ENVF y $COPIAS (bórrelos a mano 
 VOLVER
 chmod +x "$BK/volver-atras.sh"
 
-# Si el Caddyfile usa certificados "on_demand" (comodín que se come los subdominios), el bloque necesita su propio certificado
-TLS_LINEAS=""; grep -q on_demand "$CADDYFILE" && TLS_LINEAS=$'\ttls {\n\t\tissuer acme\n\t}'
-BLOQUE="$TMP/bloque.txt"
-cat > "$BLOQUE" <<CADDY
-
-# >>> contabilidad (instalar-contabilidad.sh $TS)
-$DOMINIO {
-${TLS_LINEAS:+$TLS_LINEAS
-}	encode gzip
-	header {
-		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
-		Referrer-Policy same-origin
-	}
-	reverse_proxy 127.0.0.1:$PUERTO
-}
-# <<< contabilidad
-CADDY
-cat "$CADDYFILE" "$BLOQUE" > "$TMP/Caddyfile.nuevo"
-if caddy validate --config "$TMP/Caddyfile.nuevo" --adapter caddyfile >/dev/null 2>&1; then ok "el Caddyfile nuevo es válido"
-else echo "ABORTO: el Caddyfile nuevo no valida; NO se modificó Caddy. La app quedó en pm2 solo local. Deshacer: bash $BK/volver-atras.sh"; exit 1; fi
 sudo tee "$CADDYFILE" < "$TMP/Caddyfile.nuevo" >/dev/null
 if sudo systemctl reload caddy; then ok "Caddy recargado"
 else echo "Falló el reload: restaurando el Caddyfile original"; sudo tee "$CADDYFILE" < "$BK/Caddyfile.original" >/dev/null; sudo systemctl reload caddy || true; exit 1; fi
