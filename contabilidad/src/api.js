@@ -11,6 +11,8 @@ const { HttpError, bad, num, round2 } = C;
 
 const ALL = ['admin', 'contador', 'vendedor'], ACC = ['admin', 'contador'], ADMIN = ['admin'];
 const SESSION_MS = 12 * 3600 * 1000;
+// identificador de la instalación (lo escribe el script de actualización) para comprobar qué versión corre realmente
+const BUILD = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'build-id'), 'utf8').trim(); } catch { return ''; } })();
 
 function build(db) {
   const routes = [];
@@ -24,8 +26,22 @@ function build(db) {
   const attempts = new Map();
 
   // ---------- público ----------
-  on('GET', '/api/status', null, () => ({ setup: C.isSetup(db) }));
-  on('POST', '/api/setup', null, ({ body }) => { C.setupCompany(db, body); return { ok: true }; });
+  // Código de instalación (SETUP_TOKEN): sin él nadie puede crear el primer administrador aunque conozca la dirección.
+  const setupAttempts = { n: 0, t: 0 };
+  on('GET', '/api/status', null, () => ({ build: BUILD, setup: C.isSetup(db), setup_token_required: !!process.env.SETUP_TOKEN && !C.isSetup(db) }));
+  on('POST', '/api/setup', null, ({ body }) => {
+    const want = process.env.SETUP_TOKEN;
+    if (want) {
+      if (Date.now() - setupAttempts.t > 600000) setupAttempts.n = 0;
+      if (setupAttempts.n >= 10) throw new HttpError(429, 'Demasiados intentos. Espere 10 minutos.');
+      const given = Buffer.from(String(body.setup_token || '').trim()), exp = Buffer.from(want);
+      if (given.length !== exp.length || !crypto.timingSafeEqual(given, exp)) {
+        setupAttempts.n++; setupAttempts.t = Date.now();
+        throw new HttpError(403, 'Código de instalación incorrecto');
+      }
+    }
+    C.setupCompany(db, body); return { ok: true };
+  });
   on('POST', '/api/login', null, ({ body, ip }) => {
     const key = ip + '|' + String(body.username || '').toLowerCase();
     const a = attempts.get(key) || { n: 0, t: 0 };

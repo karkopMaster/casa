@@ -284,3 +284,23 @@ test('facturación electrónica: validaciones, simulador, genérico, webhook y n
   assert.equal(D.getDocument(db, v3.id).ref, 'SETP990000002');
   bal(db);
 });
+
+test('SETUP_TOKEN: sin el código nadie crea el primer administrador', () => {
+  const { open } = require('../src/db');
+  const { build } = require('../src/api');
+  const db = open(':memory:'), api = build(db);
+  const call = (b) => api.dispatch('POST', '/api/setup', {}, b, null, '1.1.1.1');
+  const datos = { company_name: 'X', username: 'dueno', password: 'clave-segura-1' };
+  process.env.SETUP_TOKEN = 'abc123secreto';
+  try {
+    assert.equal(api.dispatch('GET', '/api/status', {}, {}, null, 'x').setup_token_required, true);
+    assert.throws(() => call(datos), /Código de instalación incorrecto/);
+    assert.throws(() => call({ ...datos, setup_token: 'otro' }), /incorrecto/);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM users').get().n, 0);
+    assert.ok(call({ ...datos, setup_token: 'abc123secreto' }).ok);
+    assert.equal(api.dispatch('GET', '/api/status', {}, {}, null, 'x').setup_token_required, false);
+    assert.throws(() => call({ ...datos, username: 'otro', setup_token: 'abc123secreto' }), /ya fue configurado/);
+    // nadie se registra solo: crear usuarios exige sesión de administrador
+    assert.throws(() => api.dispatch('POST', '/api/users', {}, { username: 'intruso', password: 'clave-segura-1', role: 'admin' }, null, 'x'), /Sesión expirada/);
+  } finally { delete process.env.SETUP_TOKEN; }
+});

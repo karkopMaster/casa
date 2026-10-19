@@ -61,3 +61,8 @@ DOMINIO=contabilidad.midominio.co bash contabilidad/deploy/instalar-contabilidad
 ```
 Antes revise el servidor con `deploy/auditar-vps.sh` (solo lectura). El instalador comprueba Node ≥ 22.13, puerto libre, nombre de pm2, DNS del dominio y que el Caddyfile valide; respalda el Caddyfile, instala en `~/contabilidad` con datos en `~/contabilidad-data`, lanza **solo** el proceso `contabilidad` en 127.0.0.1, agrega un bloque al Caddyfile (validado antes, `reload`, nunca `restart`) y deja `volver-atras.sh`. No abre puertos ni toca otras apps.
 Copia diaria opcional: `node src/backup.js ~/backups-contabilidad 30` (copia consistente con la app en marcha).
+
+## Control de acceso
+- **No hay registro público.** Solo el administrador crea usuarios (Configuración → Usuarios), les asigna rol (administrador, contador, vendedor) y puede desactivarlos o cambiarles la clave. Las sesiones duran 12 h y hay bloqueo tras intentos fallidos.
+- **Código de instalación (`SETUP_TOKEN`).** El primer administrador solo se puede crear con un código secreto que genera el instalador y que solo ve quien lo ejecuta. Sin ese código, aunque alguien conozca la dirección, no puede apropiarse del sistema.
+- Actualizar un VPS ya instalado: `bash contabilidad/deploy/actualizar-contabilidad.sh` (comprueba) y luego con `--aplicar`; verifica que la versión nueva realmente corre y si no, revierte.

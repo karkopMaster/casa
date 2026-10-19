@@ -94,7 +94,7 @@ async function render() {
   const app = $('#app');
   let st;
   try { st = await api('GET', '/status'); } catch (e) { app.innerHTML = `<div class="center"><div class="card">No se pudo conectar con el servidor.</div></div>`; return; }
-  if (!st.setup) return renderSetup(app);
+  if (!st.setup) return renderSetup(app, !!st.setup_token_required);
   if (!S.token) return renderLogin(app);
   try { const me = await api('GET', '/me'); S.user = me.user; S.cfg = me.settings; } catch (e) { return renderLogin(app); }
   const { v, sub } = route();
@@ -112,7 +112,7 @@ async function render() {
 }
 window.addEventListener('hashchange', render);
 
-function renderSetup(app) {
+function renderSetup(app, tokenReq) {
   app.innerHTML = `<div class="center"><form class="card auth" id="f"><h1>Bienvenido 👋</h1><p class="help">Configure su empresa en un minuto. Todo se puede cambiar después.</p>
   <div class="grid g2"><div><label>Nombre de la empresa *</label><input name="company_name" required></div><div><label>NIT (con dígito de verificación)</label><input name="company_nit"></div>
   <div><label>Teléfono</label><input name="company_phone"></div><div><label>Dirección</label><input name="company_address"></div></div>
@@ -121,6 +121,7 @@ function renderSetup(app) {
   <select name="sector" style="margin-bottom:10px"><option value="cabello">Productos para el cabello y belleza (lotes, vencimientos, marcas)</option><option value="general">Otro tipo de comercio</option></select>
   <select name="profile"><option value="comercio">Compro y vendo productos (tienda, distribuidora, ferretería…)</option><option value="mixto">Productos y servicios (taller, restaurante, ISP…)</option><option value="servicios">Solo servicios (sin inventario)</option></select>
   <input type="hidden" name="currency" value="$">
+  ${tokenReq ? '<h3>Código de instalación</h3><p class="help">Es el código secreto que le entregó quien instaló el sistema en el servidor.</p><input name="setup_token" required autocomplete="off" style="margin-bottom:10px">' : ''}
   <h3>Administrador</h3><div class="grid g3"><div><label>Su nombre</label><input name="admin_name"></div><div><label>Usuario *</label><input name="username" required autocomplete="username"></div><div><label>Contraseña (8+) *</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div></div>
   <p><button class="btn" style="width:100%">Crear mi sistema</button></p></form></div>`;
   $('#f').onsubmit = async (e) => {

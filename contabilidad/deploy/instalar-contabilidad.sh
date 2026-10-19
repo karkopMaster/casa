@@ -127,6 +127,7 @@ HOST=127.0.0.1
 TRUST_PROXY=1
 DB_FILE=$DATOS/contabilidad.db
 SECRET_KEY=$(openssl rand -hex 32)
+SETUP_TOKEN=$(openssl rand -hex 8)
 ENV
 )
 ok "app instalada en $APP"
@@ -171,5 +172,6 @@ if [ -t 0 ]; then
   fi
 else av "sin terminal: ejecute 'pm2 save' a mano y programe la copia diaria (ver README)"; fi
 
-echo; echo "== Listo: https://$DOMINIO  (cree la empresa y el usuario administrador la primera vez) =="
+echo; echo "== Listo: https://$DOMINIO =="
+echo "   Código de instalación (solo se pide al crear el primer administrador; guárdelo): $(grep ^SETUP_TOKEN= "$ENVF" | cut -d= -f2)"
 echo "   Deshacer: bash $BK/volver-atras.sh"
