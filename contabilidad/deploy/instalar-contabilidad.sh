@@ -121,12 +121,15 @@ echo "Listo. Quedan sin borrar: $APP, $DATOS, $ENVF y $COPIAS (bórrelos a mano 
 VOLVER
 chmod +x "$BK/volver-atras.sh"
 
+# Si el Caddyfile usa certificados "on_demand" (comodín que se come los subdominios), el bloque necesita su propio certificado
+TLS_LINEAS=""; grep -q on_demand "$CADDYFILE" && TLS_LINEAS=$'\ttls {\n\t\tissuer acme\n\t}'
 BLOQUE="$TMP/bloque.txt"
 cat > "$BLOQUE" <<CADDY
 
 # >>> contabilidad (instalar-contabilidad.sh $TS)
 $DOMINIO {
-	encode gzip
+${TLS_LINEAS:+$TLS_LINEAS
+}	encode gzip
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
