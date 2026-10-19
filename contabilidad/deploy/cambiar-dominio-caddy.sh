@@ -42,6 +42,6 @@ sudo tee "$CADDYFILE" < "$TMP/nuevo" >/dev/null
 if sudo systemctl reload caddy; then ok "Caddy recargado (respaldo en $BK)"
 else echo "Falló el reload: restaurando"; sudo tee "$CADDYFILE" < "$BK/Caddyfile.original" >/dev/null; sudo systemctl reload caddy || true; exit 1; fi
 echo "Esperando el certificado (hasta 120 s)..."
-for i in $(seq 1 60); do curl -fsS --max-time 5 "https://$A/api/status" 2>/dev/null && { echo; ok "https://$A responde"; exit 0; }; sleep 2; done
+for i in $(seq 1 60); do curl -fsS --max-time 5 "https://$A/api/health" 2>/dev/null && { echo; ok "https://$A responde"; exit 0; }; sleep 2; done
 echo "[aviso] aún no responde. Registro: sudo journalctl -u caddy --since '3 minutes ago' --no-pager | grep -iE 'contabilidad|obtain|acme|error' | cut -c1-250"
 echo "Volver al dominio anterior: sudo cp $BK/Caddyfile.original $CADDYFILE && sudo systemctl reload caddy"

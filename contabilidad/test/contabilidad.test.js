@@ -304,3 +304,52 @@ test('SETUP_TOKEN: sin el código nadie crea el primer administrador', () => {
     assert.throws(() => api.dispatch('POST', '/api/users', {}, { username: 'intruso', password: 'clave-segura-1', role: 'admin' }, null, 'x'), /Sesión expirada/);
   } finally { delete process.env.SETUP_TOKEN; }
 });
+
+test('multi-empresa: bases separadas, aislamiento total y control de la plataforma', () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { Platform } = require('../src/platform');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plat-'));
+  const P = new Platform(dir);
+  process.env.SETUP_TOKEN = 'tok-plat-123';
+  try {
+    assert.throws(() => P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'mal' }, '', 'x'), /incorrecto/);
+    P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'tok-plat-123' }, '', 'x');
+    assert.throws(() => P.handle('GET', 'tenants', {}, '', 'x'), /Sesión expirada/);
+    const { token } = P.handle('POST', 'login', { username: 'dueno', password: 'una-clave-larga-1' }, '', 'x');
+    const a = P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token);
+    const b = P.handle('POST', 'tenants', { name: 'Distribuidora Beto', admin_user: 'beto' }, token);
+    assert.equal(a.slug, 'peluqueria-ana'); assert.ok(a.password.length >= 10);
+    assert.throws(() => P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token), /ya existe/);
+    for (const mal of ['../x', 'a/b', 'API', 'plataforma', 'A B', '']) assert.equal(P.validSlug(mal), false, mal);
+    assert.throws(() => P.fileFor('../platform'), /inválido/);
+    assert.ok(fs.existsSync(path.join(dir, 'tenants', 'peluqueria-ana.db')) && fs.existsSync(path.join(dir, 'tenants', 'distribuidora-beto.db')));
+    // cada negocio entra con lo suyo y su token no sirve en el otro
+    const ta = P.tenant(a.slug), tb = P.tenant(b.slug);
+    const la = ta.api.dispatch('POST', '/api/login', {}, { username: a.admin_user, password: a.password }, '', 'x');
+    assert.throws(() => ta.api.dispatch('POST', '/api/login', {}, { username: b.admin_user, password: b.password }, '', 'x'), /incorrectos/);
+    assert.throws(() => tb.api.dispatch('GET', '/api/me', {}, {}, la.token, 'x'), /Sesión expirada/);
+    // datos separados
+    ta.api.dispatch('POST', '/api/thirds', {}, { kind: 'cliente', name: 'Cliente SOLO de Ana' }, la.token, 'x');
+    const lb = tb.api.dispatch('POST', '/api/login', {}, { username: b.admin_user, password: b.password }, '', 'x');
+    const deB = tb.api.dispatch('GET', '/api/thirds', {}, {}, lb.token, 'x');
+    assert.ok(!JSON.stringify(deB).includes('SOLO de Ana'));
+    assert.equal(ta.api.dispatch('GET', '/api/thirds', {}, {}, la.token, 'x').some((t) => t.name === 'Cliente SOLO de Ana'), true);
+    // el negocio no puede crear empresas ni reconfigurarse
+    assert.throws(() => ta.api.dispatch('POST', '/api/setup', {}, { company_name: 'x' }, '', 'x'), /plataforma/);
+    // suspender bloquea el acceso; reactivar lo devuelve
+    P.handle('POST', `tenants/${a.slug}/estado`, { status: 'suspendido' }, token);
+    assert.throws(() => P.tenant(a.slug), /suspendida/);
+    P.handle('POST', `tenants/${a.slug}/estado`, { status: 'activo' }, token);
+    assert.ok(P.tenant(a.slug));
+    // restablecer clave del admin de un negocio
+    const nueva = P.handle('POST', `tenants/${a.slug}/reset-admin`, {}, token);
+    P.tenant(a.slug).api.dispatch('POST', '/api/login', {}, { username: nueva.username, password: nueva.password }, '', 'x');
+    assert.throws(() => P.tenant(a.slug).api.dispatch('GET', '/api/me', {}, {}, la.token, 'x'), /Sesión expirada/); // sesiones anteriores cerradas
+    // copia de un negocio y archivado (no borra el archivo)
+    assert.ok(P.handle('GET', `tenants/${b.slug}/backup`, {}, token).__download.length > 1000);
+    assert.throws(() => P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: 'otro' }, token), /Escriba el código/);
+    P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: b.slug }, token);
+    assert.equal(P.tenant(b.slug), null);
+    assert.equal(fs.readdirSync(path.join(dir, 'archivo')).filter((f) => f.endsWith('.db')).length, 1);
+  } finally { delete process.env.SETUP_TOKEN; }
+});

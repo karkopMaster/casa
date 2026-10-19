@@ -27,8 +27,8 @@ grep -q '^SETUP_TOKEN=' "$ENVF" || echo "SETUP_TOKEN=$(openssl rand -hex 8)" >> 
 restaurar(){ echo "Restaurando la versión anterior..."; rm -rf "$APP"; mv "$BK/app-anterior" "$APP"; cp -a "$BK/contabilidad.env" "$ENVF"; (set -a; . "$ENVF"; set +a; pm2 restart contabilidad --update-env >/dev/null); }
 set -a; . "$ENVF"; set +a
 pm2 restart contabilidad --update-env >/dev/null          # solo este proceso; nunca "restart all"
-for i in $(seq 1 20); do curl -fsS "http://127.0.0.1:${PORT:-3010}/api/status" 2>/dev/null | grep -q "\"build\":\"$BUILD\"" && break; sleep 1; done
+for i in $(seq 1 20); do curl -fsS "http://127.0.0.1:${PORT:-3010}/api/health" 2>/dev/null | grep -q "\"build\":\"$BUILD\"" && break; sleep 1; done
 # se exige que responda ESTA versión (no la anterior): si el reinicio falló en silencio, se revierte
-if curl -fsS "http://127.0.0.1:${PORT:-3010}/api/status" 2>/dev/null | grep -q "\"build\":\"$BUILD\""; then ok "la app nueva responde (versión $BUILD)"; else echo "La versión nueva no está corriendo."; restaurar; exit 1; fi
+if curl -fsS "http://127.0.0.1:${PORT:-3010}/api/health" 2>/dev/null | grep -q "\"build\":\"$BUILD\""; then ok "la app nueva responde (versión $BUILD)"; else echo "La versión nueva no está corriendo."; restaurar; exit 1; fi
 echo; echo "== Actualizado. Respaldo del código anterior: $BK/app-anterior =="
-echo "   Código de instalación (se pide solo al crear el primer administrador): $SETUP_TOKEN"
+echo "   Código de instalación (se pide solo al crear la cuenta de dueño de la plataforma): $SETUP_TOKEN"

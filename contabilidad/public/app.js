@@ -3,8 +3,9 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { token: null, user: null, cfg: {} };
-try { S.token = localStorage.getItem('token'); } catch (_) {}
+const S = { token: null, user: null, cfg: {}, empresa: '' };
+try { S.token = localStorage.getItem('token'); S.empresa = localStorage.getItem('empresa') || ''; } catch (_) {}
+{ const e = new URLSearchParams(location.search).get('e'); if (e) { S.empresa = e.toLowerCase(); if (S.token && localStorage.getItem('empresa') !== S.empresa) S.token = null; try { localStorage.setItem('empresa', S.empresa); } catch (_) {} } }
 const todayStr = () => new Date().toLocaleDateString('sv');
 const monthStart = () => todayStr().slice(0, 8) + '01';
 const money = (n) => { const d = +(S.cfg.decimals ?? 2); return (S.cfg.currency || '$') + ' ' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }); };
@@ -15,7 +16,7 @@ const TYPE_NAME = { venta: 'Venta', compra: 'Compra', gasto: 'Gasto' };
 
 async function api(method, path, body) {
   const r = await fetch('/api' + path, {
-    method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) },
+    method, headers: { 'Content-Type': 'application/json', ...(S.empresa ? { 'X-Empresa': S.empresa } : {}), ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   let data = null;
@@ -92,10 +93,8 @@ function route() { const [v, sub] = (location.hash.slice(1) || 'inicio').split('
 
 async function render() {
   const app = $('#app');
-  let st;
-  try { st = await api('GET', '/status'); } catch (e) { app.innerHTML = `<div class="center"><div class="card">No se pudo conectar con el servidor.</div></div>`; return; }
-  if (!st.setup) return renderSetup(app, !!st.setup_token_required);
-  if (!S.token) return renderLogin(app);
+  if (location.hash.startsWith('#plataforma')) return renderPlatform(app);
+  if (!S.token || !S.empresa) return renderLogin(app);
   try { const me = await api('GET', '/me'); S.user = me.user; S.cfg = me.settings; } catch (e) { return renderLogin(app); }
   const { v, sub } = route();
   const nav = NAV.filter((n) => n[2].includes(S.user.role));
@@ -112,29 +111,20 @@ async function render() {
 }
 window.addEventListener('hashchange', render);
 
-function renderSetup(app, tokenReq) {
-  app.innerHTML = `<div class="center"><form class="card auth" id="f"><h1>Bienvenido 👋</h1><p class="help">Configure su empresa en un minuto. Todo se puede cambiar después.</p>
-  <div class="grid g2"><div><label>Nombre de la empresa *</label><input name="company_name" required></div><div><label>NIT (con dígito de verificación)</label><input name="company_nit"></div>
-  <div><label>Teléfono</label><input name="company_phone"></div><div><label>Dirección</label><input name="company_address"></div></div>
-  <h3>Su negocio</h3>
-  <p class="help">Colombia · pesos (COP) · plan de cuentas PUC, IVA 19 % / 5 % y retenciones ya vienen configurados.</p>
-  <select name="sector" style="margin-bottom:10px"><option value="cabello">Productos para el cabello y belleza (lotes, vencimientos, marcas)</option><option value="general">Otro tipo de comercio</option></select>
-  <select name="profile"><option value="comercio">Compro y vendo productos (tienda, distribuidora, ferretería…)</option><option value="mixto">Productos y servicios (taller, restaurante, ISP…)</option><option value="servicios">Solo servicios (sin inventario)</option></select>
-  <input type="hidden" name="currency" value="$">
-  ${tokenReq ? '<h3>Código de instalación</h3><p class="help">Es el código secreto que le entregó quien instaló el sistema en el servidor.</p><input name="setup_token" required autocomplete="off" style="margin-bottom:10px">' : ''}
-  <h3>Administrador</h3><div class="grid g3"><div><label>Su nombre</label><input name="admin_name"></div><div><label>Usuario *</label><input name="username" required autocomplete="username"></div><div><label>Contraseña (8+) *</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div></div>
-  <p><button class="btn" style="width:100%">Crear mi sistema</button></p></form></div>`;
-  $('#f').onsubmit = async (e) => {
-    e.preventDefault();
-    try { await api('POST', '/setup', formData(e.target)); toast('¡Listo! Ahora ingrese.'); render(); } catch (er) { fail(er); }
-  };
-}
 function renderLogin(app) {
-  app.innerHTML = `<div class="center"><form class="card auth" id="f"><h1>Ingresar</h1><p><label>Usuario</label><input name="username" required autofocus autocomplete="username"></p>
-  <p><label>Contraseña</label><input name="password" type="password" required autocomplete="current-password"></p><p><button class="btn" style="width:100%">Entrar</button></p></form></div>`;
+  app.innerHTML = `<div class="center"><form class="card auth" id="f"><h1>Ingresar</h1><p class="help">Escriba el código de su empresa y sus datos de acceso.</p>
+  <p><label>Código de empresa</label><input name="empresa" required autocapitalize="none" autocomplete="organization" value="${esc(S.empresa)}" placeholder="ej: mi-negocio"></p>
+  <p><label>Usuario</label><input name="username" required ${S.empresa ? 'autofocus' : ''} autocomplete="username"></p>
+  <p><label>Contraseña</label><input name="password" type="password" required autocomplete="current-password"></p><p><button class="btn" style="width:100%">Entrar</button></p>
+  <p class="help" style="text-align:center"><a href="#plataforma">Administrador de la plataforma</a></p></form></div>`;
   $('#f').onsubmit = async (e) => {
     e.preventDefault();
-    try { const r = await api('POST', '/login', formData(e.target)); S.token = r.token; try { localStorage.setItem('token', r.token); } catch (_) {} location.hash = ''; render(); } catch (er) { fail(er); }
+    const f = formData(e.target); S.empresa = f.empresa.trim().toLowerCase();
+    try {
+      const r = await api('POST', '/login', { username: f.username, password: f.password });
+      S.token = r.token; try { localStorage.setItem('token', r.token); localStorage.setItem('empresa', S.empresa); } catch (_) {}
+      location.hash = ''; render();
+    } catch (er) { fail(er); }
   };
 }
 function changePassword() {

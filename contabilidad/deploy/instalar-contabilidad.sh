@@ -135,8 +135,8 @@ ok "app instalada en $APP"
 
 set -a; . "$ENVF"; set +a
 pm2 start "$APP/src/server.js" --name contabilidad --cwd "$APP" --node-args="--disable-warning=ExperimentalWarning" >/dev/null
-for i in $(seq 1 20); do curl -fsS "http://127.0.0.1:$PUERTO/api/status" >/dev/null 2>&1 && break; sleep 1; done
-curl -fsS "http://127.0.0.1:$PUERTO/api/status" >/dev/null && ok "la app responde en 127.0.0.1:$PUERTO" || { echo "ABORTO: la app no responde. Vea: pm2 logs contabilidad. Para deshacer: bash $BK/volver-atras.sh"; exit 1; }
+for i in $(seq 1 20); do curl -fsS "http://127.0.0.1:$PUERTO/api/health" >/dev/null 2>&1 && break; sleep 1; done
+curl -fsS "http://127.0.0.1:$PUERTO/api/health" >/dev/null && ok "la app responde en 127.0.0.1:$PUERTO" || { echo "ABORTO: la app no responde. Vea: pm2 logs contabilidad. Para deshacer: bash $BK/volver-atras.sh"; exit 1; }
 
 cat > "$BK/volver-atras.sh" <<VOLVER
 #!/usr/bin/env bash
@@ -159,7 +159,7 @@ if sudo systemctl reload caddy; then ok "Caddy recargado"
 else echo "Falló el reload: restaurando el Caddyfile original"; sudo tee "$CADDYFILE" < "$BK/Caddyfile.original" >/dev/null; sudo systemctl reload caddy || true; exit 1; fi
 
 echo "  esperando el certificado HTTPS (hasta 60 s)..."
-HTTPS=0; for i in $(seq 1 30); do curl -fsS --max-time 5 "https://$DOMINIO/api/status" >/dev/null 2>&1 && { HTTPS=1; break; }; sleep 2; done
+HTTPS=0; for i in $(seq 1 30); do curl -fsS --max-time 5 "https://$DOMINIO/api/health" >/dev/null 2>&1 && { HTTPS=1; break; }; sleep 2; done
 [ $HTTPS = 1 ] && ok "https://$DOMINIO responde" || av "todavía no responde por https (Caddy sigue gestionando el certificado: sudo journalctl -u caddy -n 30)"
 
 # opcionales, solo si hay terminal
@@ -173,5 +173,6 @@ if [ -t 0 ]; then
 else av "sin terminal: ejecute 'pm2 save' a mano y programe la copia diaria (ver README)"; fi
 
 echo; echo "== Listo: https://$DOMINIO =="
-echo "   Código de instalación (solo se pide al crear el primer administrador; guárdelo): $(grep ^SETUP_TOKEN= "$ENVF" | cut -d= -f2)"
+echo "   Siguiente paso: abra https://$DOMINIO/#plataforma y cree su cuenta de dueño de la plataforma."
+echo "   Código de instalación (guárdelo; solo se usa una vez): $(grep ^SETUP_TOKEN= "$ENVF" | cut -d= -f2)"
 echo "   Deshacer: bash $BK/volver-atras.sh"

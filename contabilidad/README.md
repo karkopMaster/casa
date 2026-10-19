@@ -11,7 +11,7 @@ npm test             # pruebas del motor contable
 ```
 Variables: `PORT`, `HOST` (por defecto 127.0.0.1; use `0.0.0.0` y un proxy HTTPS para acceso remoto), `DB_FILE` (por defecto `data/contabilidad.db`).
 
-La primera vez se abre un asistente: nombre de empresa, tipo de negocio (con inventario / mixto / solo servicios), moneda, impuesto y usuario administrador. No hay usuarios ni claves por defecto.
+**Plataforma multi-empresa:** cada negocio tiene su propia base de datos (un archivo por empresa en `data/tenants/`), sin ver los datos de los demás. La primera vez, abra `/#plataforma`, escriba el código de instalación (se imprime en la consola o está en `SETUP_TOKEN`) y cree la cuenta del dueño de la plataforma. Desde ahí crea los negocios; cada uno entra con su **código de empresa**, usuario y contraseña (o con el enlace `/?e=codigo`). No hay usuarios ni claves por defecto.
 
 ## Qué incluye
 - **Ventas, compras y gastos** con descuentos, IVA (19 %, 5 %, excluido), contado / crédito / abono, impresión y anulación.
@@ -66,3 +66,11 @@ Copia diaria opcional: `node src/backup.js ~/backups-contabilidad 30` (copia con
 - **No hay registro público.** Solo el administrador crea usuarios (Configuración → Usuarios), les asigna rol (administrador, contador, vendedor) y puede desactivarlos o cambiarles la clave. Las sesiones duran 12 h y hay bloqueo tras intentos fallidos.
 - **Código de instalación (`SETUP_TOKEN`).** El primer administrador solo se puede crear con un código secreto que genera el instalador y que solo ve quien lo ejecuta. Sin ese código, aunque alguien conozca la dirección, no puede apropiarse del sistema.
 - Actualizar un VPS ya instalado: `bash contabilidad/deploy/actualizar-contabilidad.sh` (comprueba) y luego con `--aplicar`; verifica que la versión nueva realmente corre y si no, revierte.
+
+## Multi-empresa: cómo funciona el aislamiento
+- Una base SQLite por negocio + `platform.db` con el dueño y la lista de negocios. El token de sesión de un negocio solo existe en su base: no sirve en otro.
+- El código de empresa se valida estrictamente (`a-z`, `0-9`, `-`) antes de formar cualquier ruta de archivo.
+- El dueño de la plataforma **administra** (crear, suspender, restablecer la clave del admin del negocio, descargar copia, archivar) pero el panel no muestra datos contables.
+- Un negocio suspendido no puede entrar; "archivar" mueve su base a `data/archivo/` (no se borra).
+- `node src/backup.js <carpeta> 30` respalda la plataforma y cada negocio por separado.
+- Los avisos de pasarelas y facturación electrónica usan la URL con el código: `/api/e/<codigo>/gateways/<id>/webhook` y `/api/e/<codigo>/einvoice/webhook`.

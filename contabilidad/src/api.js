@@ -14,7 +14,7 @@ const SESSION_MS = 12 * 3600 * 1000;
 // identificador de la instalación (lo escribe el script de actualización) para comprobar qué versión corre realmente
 const BUILD = (() => { try { return require('fs').readFileSync(require('path').join(__dirname, '..', 'build-id'), 'utf8').trim(); } catch { return ''; } })();
 
-function build(db) {
+function build(db, opts = {}) {
   const routes = [];
   const on = (method, path, roles, fn) => {
     const keys = [];
@@ -30,6 +30,7 @@ function build(db) {
   const setupAttempts = { n: 0, t: 0 };
   on('GET', '/api/status', null, () => ({ build: BUILD, setup: C.isSetup(db), setup_token_required: !!process.env.SETUP_TOKEN && !C.isSetup(db) }));
   on('POST', '/api/setup', null, ({ body }) => {
+    if (opts.multi) throw new HttpError(403, 'Las empresas las crea el administrador de la plataforma');
     const want = process.env.SETUP_TOKEN;
     if (want) {
       if (Date.now() - setupAttempts.t > 600000) setupAttempts.n = 0;
