@@ -1,0 +1,12 @@
+{
+  "name": "contabilidad",
+  "version": "1.0.0",
+  "description": "Software contable para cualquier empresa de ventas: inventario, compras, ventas, cobros, pagos y partida doble.",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}
