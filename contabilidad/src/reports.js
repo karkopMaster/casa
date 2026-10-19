@@ -92,6 +92,7 @@ function salesReport(db, q) {
     cliente: ["COALESCE(t.name, 'Sin cliente')", 't.name'],
     dia: ['d.date', 'd.date'],
     mes: ["substr(d.date,1,7)", "substr(d.date,1,7)"],
+    marca: ["COALESCE(p.brand, 'Sin marca')", 'p.brand'],
     vendedor: ["COALESCE(u.name, '—')", 'u.name'],
   };
   const g = groups[q.group] || groups.producto;
@@ -134,6 +135,20 @@ function inventoryReport(db) {
   return { rows, total_value: round2(rows.reduce((s, r) => s + r.value, 0)) };
 }
 
+// Lotes con existencia, ordenados por vencimiento. days = ventana de "próximos a vencer".
+function lotsReport(db, q) {
+  const days = Math.max(1, parseInt(q.days, 10) || 90), now = today();
+  const limit = new Date(Date.parse(now) + days * 86400000).toISOString().slice(0, 10);
+  const rows = db.prepare(`SELECT l.id, l.lot, l.expiry, l.qty_left, l.unit_cost, ROUND(l.qty_left*l.unit_cost,2) value, p.code, p.name, p.brand
+    FROM lots l JOIN products p ON p.id=l.product_id WHERE l.qty_left>0 ORDER BY l.expiry IS NULL, l.expiry, p.name`).all();
+  for (const r of rows) {
+    r.days_left = r.expiry ? Math.floor((Date.parse(r.expiry) - Date.parse(now)) / 86400000) : null;
+    r.status = !r.expiry ? 'sin fecha' : r.expiry < now ? 'vencido' : r.expiry <= limit ? 'por vencer' : 'vigente';
+  }
+  const sum = (st) => round2(rows.filter((r) => r.status === st).reduce((s, r) => s + r.value, 0));
+  return { days, rows, expired_value: sum('vencido'), expiring_value: sum('por vencer'), expired_count: rows.filter((r) => r.status === 'vencido').length, expiring_count: rows.filter((r) => r.status === 'por vencer').length };
+}
+
 function kardex(db, q) {
   const { from, to } = range(q);
   const p = db.prepare('SELECT * FROM products WHERE id=?').get(num(q.product_id));
@@ -158,11 +173,12 @@ function dashboard(db) {
   const d30 = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
   const daily = db.prepare("SELECT date, ROUND(SUM(subtotal),2) v FROM documents WHERE type='venta' AND status='activo' AND date>=? AND date<=? GROUP BY date ORDER BY date").all(d30, now);
   const invValue = inventoryReport(db).total_value;
+  const lots = C.lotsOn(db) ? lotsReport(db, { days: 60 }) : null;
   return {
     month_from: ms, sales_month: round2(sales.v), sales_count: sales.n, purchases_month: round2(purchases.v), profit_month: inc.utilidad_neta,
     cash, cash_total: round2(cash.reduce((s, c) => s + c.balance, 0)), receivable: round2(cxc.v), payable: round2(cxp.v),
-    overdue_count: vencidas.n, overdue_total: round2(vencidas.v), low_stock: low, top_products: top, daily, inventory_value: invValue,
+    overdue_count: vencidas.n, overdue_total: round2(vencidas.v), lots: lots && { expired_count: lots.expired_count, expiring_count: lots.expiring_count, expired_value: lots.expired_value, expiring_value: lots.expiring_value }, low_stock: low, top_products: top, daily, inventory_value: invValue,
   };
 }
 
-module.exports = { trialBalance, incomeStatement, balanceSheet, ledger, journal, salesReport, agingReport, inventoryReport, kardex, dashboard };
+module.exports = { trialBalance, incomeStatement, balanceSheet, ledger, journal, salesReport, agingReport, inventoryReport, kardex, lotsReport, dashboard };

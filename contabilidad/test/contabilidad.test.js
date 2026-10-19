@@ -44,8 +44,8 @@ test('compra, venta, costo promedio y cuadre contable', () => {
   assert.equal(venta.subtotal, 500); assert.equal(venta.tax, 95); assert.equal(venta.total, 595);
   assert.equal(venta.cogs, 275); assert.equal(venta.balance, 295);
   assert.equal(db.prepare('SELECT stock FROM products WHERE id=?').get(p).stock, 15);
-  D.registerPayment(db, user, { doc_id: venta.id, amount: 295, date: '2025-01-20', account_code: '1110' });
-  D.registerPayment(db, user, { doc_id: compra.id, amount: 714, date: '2025-01-21', account_code: '1105' });
+  D.registerPayment(db, user, { doc_id: venta.id, amount: 295, date: '2025-01-20', account_code: '111005' });
+  D.registerPayment(db, user, { doc_id: compra.id, amount: 714, date: '2025-01-21', account_code: '110505' });
   bal(db);
   const er = R.incomeStatement(db, { from: '2025-01-01', to: '2025-01-31' });
   assert.equal(er.ingresos.total, 500); assert.equal(er.costos.total, 275); assert.equal(er.utilidad_neta, 225);
@@ -55,7 +55,7 @@ test('compra, venta, costo promedio y cuadre contable', () => {
   const inv = R.inventoryReport(db);
   assert.equal(inv.total_value, 825); // 15 * 55
   // el inventario contable coincide con el kardex
-  assert.equal(R.ledger(db, { account: '1435' }).closing, 825);
+  assert.equal(R.ledger(db, { account: '143505' }).closing, 825);
 });
 
 test('no vende sin existencias y valida datos', () => {
@@ -109,10 +109,10 @@ test('anular compra cuyo stock ya se vendió falla', () => {
 
 test('gastos, asientos manuales y cierre de período', () => {
   const { db, user, prov } = fresh();
-  const g = D.createDocument(db, user, { type: 'gasto', date: '2025-04-01', third_id: prov, lines: [{ description: 'Arriendo abril', qty: 1, price: 1000, account_code: '5120', tax_id: '' }], pay_now: 1000 });
+  const g = D.createDocument(db, user, { type: 'gasto', date: '2025-04-01', third_id: prov, lines: [{ description: 'Arriendo abril', qty: 1, price: 1000, account_code: '512010', tax_id: '' }], pay_now: 1000 });
   assert.equal(g.balance, 0);
-  D.createManualEntry(db, user, { date: '2025-04-02', description: 'Aporte inicial', lines: [{ account_code: '1110', debit: 5000 }, { account_code: '3105', credit: 5000 }] });
-  assert.throws(() => D.createManualEntry(db, user, { date: '2025-04-02', lines: [{ account_code: '1110', debit: 10 }, { account_code: '3105', credit: 9 }] }), /no cuadra/);
+  D.createManualEntry(db, user, { date: '2025-04-02', description: 'Aporte inicial', lines: [{ account_code: '111005', debit: 5000 }, { account_code: '310505', credit: 5000 }] });
+  assert.throws(() => D.createManualEntry(db, user, { date: '2025-04-02', lines: [{ account_code: '111005', debit: 10 }, { account_code: '310505', credit: 9 }] }), /no cuadra/);
   bal(db);
   assert.equal(R.incomeStatement(db, {}).utilidad_neta, -1000);
   C.setSetting(db, 'lock_date', '2025-04-30');
@@ -121,9 +121,9 @@ test('gastos, asientos manuales y cierre de período', () => {
 
 test('anular asiento manual', () => {
   const { db, user } = fresh();
-  const { id } = D.createManualEntry(db, user, { date: '2025-05-01', description: 'x', lines: [{ account_code: '1105', debit: 50 }, { account_code: '3105', credit: 50 }] });
+  const { id } = D.createManualEntry(db, user, { date: '2025-05-01', description: 'x', lines: [{ account_code: '110505', debit: 50 }, { account_code: '310505', credit: 50 }] });
   D.voidManualEntry(db, user, id, '2025-05-02');
-  assert.equal(R.ledger(db, { account: '1105' }).closing, 0);
+  assert.equal(R.ledger(db, { account: '110505' }).closing, 0);
   assert.throws(() => D.voidManualEntry(db, user, id), /anulado/);
   bal(db);
 });
@@ -134,5 +134,46 @@ test('descuento por línea y varios impuestos', () => {
   const v = D.createDocument(db, user, { type: 'venta', date: '2025-06-01', third_id: cli, lines: [{ product_id: p, qty: 3, disc_pct: 10 }], pay_now: 0 });
   assert.equal(v.subtotal, 270); assert.equal(v.discount, 30); assert.equal(v.tax, 51.3); assert.equal(v.total, 321.3);
   assert.equal(R.agingReport(db, { type: 'venta', to: '2025-06-10' }).totals.total, 321.3);
+  bal(db);
+});
+
+test('Colombia: plan PUC, IVA 19/5 y retenciones en compra y venta', () => {
+  const { db, user, cli, prov, mkProd } = fresh();
+  assert.ok(db.prepare("SELECT 1 FROM accounts WHERE code='240801'").get());
+  assert.deepEqual(db.prepare('SELECT rate FROM taxes ORDER BY id').all().map((t) => t.rate), [19, 5, 0]);
+  const p = mkProd('K1', 1000);
+  C.adjustStock(db, user, { product_id: p, qty: 100, unit_cost: 400, kind: 'inicial', date: '2025-01-01' });
+  const w = (name) => db.prepare('SELECT * FROM withholdings WHERE name LIKE ?').get(name + '%');
+  // compra: 10 × 400 + IVA 760 − retefuente 2,5% (100) − reteIVA 15% (114)
+  const c = D.createDocument(db, user, { type: 'compra', date: '2025-02-01', third_id: prov, lines: [{ product_id: p, qty: 10, price: 400 }], withholdings: [w('Retefuente por compras').id, w('ReteIVA 15% del IVA').id] });
+  assert.equal(c.subtotal, 4000); assert.equal(c.tax, 760); assert.equal(c.withholding, 214); assert.equal(c.total, 4546);
+  assert.equal(R.ledger(db, { account: '236540' }).closing, 100);
+  // venta: el cliente nos retiene
+  const v = D.createDocument(db, user, { type: 'venta', date: '2025-02-02', third_id: cli, lines: [{ product_id: p, qty: 10 }], withholdings: [w('Retefuente que nos practican').id] });
+  assert.equal(v.total, 10000 + 1900 - 250);
+  assert.throws(() => D.createDocument(db, user, { type: 'venta', date: '2025-02-02', third_id: cli, lines: [{ product_id: p, qty: 1 }], withholdings: [w('Retefuente por compras').id] }), /no aplica/);
+  D.registerPayment(db, user, { doc_id: v.id, amount: v.total, date: '2025-02-03', account_code: '111010' });
+  assert.equal(R.agingReport(db, { type: 'venta' }).totals.total, 0);
+  assert.equal(R.ledger(db, { account: '135515' }).closing, 250);
+  bal(db);
+  D.voidDocument(db, user, c.id, '2025-02-05');
+  bal(db);
+});
+
+test('cabello: lotes FEFO, vencimientos y precio mayorista', () => {
+  const { db, user, cli, prov, mkProd } = fresh();
+  const p = mkProd('SH1', 20000);
+  db.prepare('UPDATE products SET price2=15000 WHERE id=?').run(p);
+  const mayo = Number(db.prepare("INSERT INTO thirds(kind,name,price_list) VALUES('cliente','Peluquería Estilo','mayorista')").run().lastInsertRowid);
+  D.createDocument(db, user, { type: 'compra', date: '2025-01-01', third_id: prov, lines: [{ product_id: p, qty: 5, price: 8000, lot: 'L-NUEVO', expiry: '2027-12-31' }], pay_now: 47600 });
+  D.createDocument(db, user, { type: 'compra', date: '2025-01-02', third_id: prov, lines: [{ product_id: p, qty: 5, price: 8000, lot: 'L-VIEJO', expiry: '2026-03-01' }], pay_now: 47600 });
+  const v = D.createDocument(db, user, { type: 'venta', date: '2025-01-10', third_id: mayo, lines: [{ product_id: p, qty: 6 }] });
+  assert.equal(v.lines[0].price, 15000);                       // lista mayorista
+  const lots = db.prepare('SELECT lot, qty_left FROM lots ORDER BY expiry').all();
+  assert.deepEqual(lots.map((l) => l.qty_left), [0, 4]);        // primero se agota el que vence antes
+  const rep = R.lotsReport(db, { days: 100000 });
+  assert.equal(rep.rows.length, 1); assert.equal(rep.rows[0].lot, 'L-NUEVO');
+  D.voidDocument(db, user, v.id, '2025-01-11');                 // anular devuelve a los mismos lotes
+  assert.deepEqual(db.prepare('SELECT qty_left FROM lots ORDER BY expiry').all().map((l) => l.qty_left), [5, 5]);
   bal(db);
 });

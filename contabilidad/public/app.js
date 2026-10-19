@@ -7,7 +7,7 @@ const S = { token: null, user: null, cfg: {} };
 try { S.token = localStorage.getItem('token'); } catch (_) {}
 const todayStr = () => new Date().toLocaleDateString('sv');
 const monthStart = () => todayStr().slice(0, 8) + '01';
-const money = (n) => (S.cfg.currency || '$') + ' ' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => { const d = +(S.cfg.decimals ?? 2); return (S.cfg.currency || '$') + ' ' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }); };
 const qty = (n) => Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 4 });
 const mneg = (n) => `<span class="${n < 0 ? 'neg' : ''}">${money(n)}</span>`;
 const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
@@ -114,11 +114,13 @@ window.addEventListener('hashchange', render);
 
 function renderSetup(app) {
   app.innerHTML = `<div class="center"><form class="card auth" id="f"><h1>Bienvenido 👋</h1><p class="help">Configure su empresa en un minuto. Todo se puede cambiar después.</p>
-  <div class="grid g2"><div><label>Nombre de la empresa *</label><input name="company_name" required></div><div><label>NIT / identificación</label><input name="company_nit"></div>
+  <div class="grid g2"><div><label>Nombre de la empresa *</label><input name="company_name" required></div><div><label>NIT (con dígito de verificación)</label><input name="company_nit"></div>
   <div><label>Teléfono</label><input name="company_phone"></div><div><label>Dirección</label><input name="company_address"></div></div>
-  <h3>¿Cómo funciona su negocio?</h3>
+  <h3>Su negocio</h3>
+  <p class="help">Colombia · pesos (COP) · plan de cuentas PUC, IVA 19 % / 5 % y retenciones ya vienen configurados.</p>
+  <select name="sector" style="margin-bottom:10px"><option value="cabello">Productos para el cabello y belleza (lotes, vencimientos, marcas)</option><option value="general">Otro tipo de comercio</option></select>
   <select name="profile"><option value="comercio">Compro y vendo productos (tienda, distribuidora, ferretería…)</option><option value="mixto">Productos y servicios (taller, restaurante, ISP…)</option><option value="servicios">Solo servicios (sin inventario)</option></select>
-  <div class="grid g3" style="margin-top:10px"><div><label>Símbolo de moneda</label><input name="currency" value="$"></div><div><label>Impuesto (nombre)</label><input name="tax_name" value="IVA"></div><div><label>Tarifa % (0 = sin impuesto)</label><input name="tax_rate" type="number" step="0.01" min="0" max="100" value="19"></div></div>
+  <input type="hidden" name="currency" value="$">
   <h3>Administrador</h3><div class="grid g3"><div><label>Su nombre</label><input name="admin_name"></div><div><label>Usuario *</label><input name="username" required autocomplete="username"></div><div><label>Contraseña (8+) *</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div></div>
   <p><button class="btn" style="width:100%">Crear mi sistema</button></p></form></div>`;
   $('#f').onsubmit = async (e) => {
@@ -162,6 +164,7 @@ VIEWS.inicio = async (el) => {
     <div class="kpi"><div class="l">Productos con poco stock</div><div class="v ${d.low_stock.length ? 'neg' : ''}">${d.low_stock.length}</div></div></div>
   <div class="grid g2"><div class="card"><h2>Ventas últimos 30 días</h2>${d.daily.length ? `<div class="bars">${d.daily.map((x) => `<div title="${esc(x.date)}: ${esc(money(x.v))}" style="height:${Math.round(x.v / max * 100)}%"></div>`).join('')}</div>` : '<p class="help">Sin ventas en el período.</p>'}</div>
   <div class="card"><h2>Más vendidos del mes</h2>${table([{ h: 'Producto', k: 'label' }, { h: 'Cant.', k: 'qty', q: 1 }, { h: 'Ventas', k: 'sales', m: 1 }], d.top_products, { empty: 'Sin ventas este mes' })}</div></div>
+  ${d.lots && (d.lots.expired_count || d.lots.expiring_count) ? `<div class="card"><h2>⏳ Vencimientos</h2><p>${d.lots.expired_count ? `<b class="neg">${d.lots.expired_count} lotes vencidos</b> (${money(d.lots.expired_value)}) · ` : ''}${d.lots.expiring_count} lotes vencen en 60 días (${money(d.lots.expiring_value)}). <a href="#inventario/vencimientos">Ver detalle</a></p></div>` : ''}
   ${d.low_stock.length ? `<div class="card"><h2>⚠ Reabastecer</h2>${table([{ h: 'Código', k: 'code' }, { h: 'Producto', k: 'name' }, { h: 'Existencia', k: 'stock', q: 1 }, { h: 'Mínimo', k: 'min_stock', q: 1 }], d.low_stock)}</div>` : ''}
   <div class="card"><h2>Caja y bancos</h2>${table([{ h: 'Cuenta', k: (r) => r.code + ' · ' + r.name }, { h: 'Saldo', k: 'balance', m: 1 }], d.cash)}</div>`;
 };
@@ -194,13 +197,13 @@ VIEWS.ventas = docView('venta'); VIEWS.compras = docView('compra'); VIEWS.gastos
 async function showDoc(id, reload) {
   const d = await api('GET', '/documents/' + id);
   const c = S.cfg;
-  const html = `<div class="printable"><div class="inv-head"><div><h2 style="margin:0">${esc(c.company_name)}</h2><div class="help">${esc(c.company_nit)} ${esc(c.company_address)} ${esc(c.company_phone)}</div></div>
+  const html = `<div class="printable"><div class="inv-head"><div><h2 style="margin:0">${esc(c.company_name)}</h2><div class="help">NIT ${esc(c.company_nit)} · ${esc(c.company_address)} · ${esc(c.company_phone)}</div>${c.dian_text ? `<div class="help">${esc(c.dian_text)}</div>` : ''}</div>
     <div style="text-align:right"><h2 style="margin:0">${TYPE_NAME[d.type].toUpperCase()} ${esc(d.number)}</h2><div>${esc(d.date)} ${d.status === 'anulado' ? '<span class="tag err">ANULADO</span>' : ''}</div><div class="help">Vence: ${esc(d.due_date)}</div></div></div>
     <p><b>${d.type === 'venta' ? 'Cliente' : 'Proveedor'}:</b> ${esc(d.third_name || '—')} ${esc(d.third_doc || '')}<br><span class="help">${esc(d.third_address || '')} ${esc(d.third_phone || '')}</span></p>
     ${table([{ h: 'Descripción', k: 'description' }, { h: 'Cant.', k: 'qty', q: 1 }, { h: 'Precio', k: 'price', m: 1 }, { h: 'Desc %', k: 'disc_pct', n: 1 }, { h: 'Imp. %', k: 'tax_rate', n: 1 }, { h: 'Total', k: 'total', m: 1 }], d.lines)}
-    <div class="totals"><div><span>Subtotal</span><span>${money(d.subtotal)}</span></div>${d.discount ? `<div><span>Descuentos incluidos</span><span>${money(d.discount)}</span></div>` : ''}<div><span>Impuestos</span><span>${money(d.tax)}</span></div>
+    <div class="totals"><div><span>Subtotal</span><span>${money(d.subtotal)}</span></div>${d.discount ? `<div><span>Descuentos incluidos</span><span>${money(d.discount)}</span></div>` : ''}<div><span>Impuestos</span><span>${money(d.tax)}</span></div>${(d.withholdings || []).map((w) => `<div><span>(−) ${esc(w.name)}</span><span>${money(w.amount)}</span></div>`).join('')}
     <div class="big"><span>Total</span><span>${money(d.total)}</span></div><div><span>Pagado</span><span>${money(d.paid)}</span></div><div><b>Saldo</b><b>${money(d.balance)}</b></div></div>
-    ${d.notes ? `<p class="help">${esc(d.notes)}</p>` : ''}</div>
+    ${d.ref ? `<p class="help">Ref.: ${esc(d.ref)}</p>` : ''}${d.notes ? `<p class="help">${esc(d.notes)}</p>` : ''}${c.print_footer ? `<p class="help" style="margin-top:16px">${esc(c.print_footer)}</p>` : ''}</div>
     ${d.payments.length ? `<h3 class="noprint">Cobros / pagos</h3><div class="noprint">${table([{ h: 'Fecha', k: 'date' }, { h: 'Cuenta', k: 'account_name' }, { h: 'Valor', k: 'amount', m: 1 }, { h: 'Estado', k: 'status' },
       { h: '', raw: 1, k: (p) => (p.status === 'activo' && can('admin', 'contador') ? `<button class="btn sm sec" data-vp="${p.id}">Anular</button>` : '') }], d.payments)}</div>` : ''}
     <div class="actions noprint" style="margin-top:14px"><button class="btn sec" id="prt">Imprimir</button>
@@ -240,35 +243,58 @@ async function docForm(el, type) {
   const taxes = S.cfg.taxes, accs = S.cfg.pay_accounts;
   const plural = { venta: 'ventas', compra: 'compras', gasto: 'gastos' }[type];
   setTop('<a class="btn sec" href="#' + plural + '">← Volver</a>');
-  const useInv = S.cfg.use_inventory === '1';
+  const lotCols = type === 'compra' && S.cfg.use_inventory === '1' && S.cfg.track_lots === '1';
+  const whList = (S.cfg.withholdings || []).filter((w) => w.applies === (type === 'venta' ? 'venta' : 'compra'));
   el.innerHTML = `<form class="card" id="f"><div class="grid g4">
     <div><label>${type === 'venta' ? 'Cliente' : 'Proveedor'}</label><select name="third_id"><option value="">— ${type === 'venta' ? 'Mostrador (solo contado)' : 'Sin proveedor (solo contado)'} —</option>${thirds.map((t) => opt(t.id, t.name + (t.company ? ' · ' + t.company : ''))).join('')}</select></div>
     <div><label>Fecha</label><input type="date" name="date" value="${todayStr()}" required></div>
     <div><label>Vencimiento</label><input type="date" name="due_date" value="${todayStr()}"></div>
     <div><label>${type === 'venta' ? 'Referencia' : 'N.º factura del proveedor'}</label><input name="${type === 'venta' ? 'ref' : 'number'}"></div></div>
-    <h3>Detalle</h3><div class="tw"><table class="lines"><thead><tr><th style="min-width:210px">${type === 'gasto' ? 'Concepto' : 'Producto / servicio'}</th>${type === 'gasto' ? '<th style="min-width:170px">Cuenta</th>' : ''}<th>Cant.</th><th>Precio</th><th>Desc %</th><th>Impuesto</th><th class="n">Total</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
+    <h3>Detalle</h3><div class="tw"><table class="lines"><thead><tr><th style="min-width:210px">${type === 'gasto' ? 'Concepto' : 'Producto / servicio'}</th>${type === 'gasto' ? '<th style="min-width:170px">Cuenta</th>' : ''}${lotCols ? '<th>Lote</th><th>Vence</th>' : ''}<th>Cant.</th><th>Precio</th><th>Desc %</th><th>Impuesto</th><th class="n">Total</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
     <p><button type="button" class="btn sec sm" id="addl">+ Agregar línea</button></p>
     <div class="grid g2"><div><div class="grid g2"><div><label>Forma de pago</label><select id="pm"><option value="contado">Contado</option><option value="credito">Crédito</option><option value="parcial">Abono parcial</option></select></div>
       <div><label>Abono / pago inicial</label><input id="paynow" type="number" step="0.01" min="0" value="0"></div></div>
       <div style="margin-top:10px"><label>${type === 'venta' ? 'Entra a' : 'Sale de'}</label><select name="pay_account">${accs.map((a) => opt(a.code, a.code + ' · ' + a.name)).join('')}</select></div>
+      ${whList.length ? `<div style="margin-top:10px"><label>Retenciones${type === 'venta' ? ' que nos practica el cliente' : ' que practicamos'}</label>${whList.map((w) => `<label style="font-weight:400;color:var(--ink)"><input type="checkbox" class="wh" value="${w.id}" style="width:auto"> ${esc(w.name)}</label>`).join('')}</div>` : ''}
       <div style="margin-top:10px"><label>Notas</label><textarea name="notes" rows="2"></textarea></div></div>
     <div class="totals" id="tot"></div></div>
     <p><button class="btn" id="save">Guardar ${type}</button></p></form><datalist id="plist">${products.map((p) => `<option value="${esc(p.code + ' · ' + p.name)}">`).join('')}</datalist>`;
   const byLabel = new Map(products.map((p) => [p.code + ' · ' + p.name, p]));
+  const byKey = new Map();
+  for (const p of products) { byKey.set(p.code.toLowerCase(), p); if (p.barcode) byKey.set(String(p.barcode).toLowerCase(), p); }
+  const thirdSel = $('[name=third_id]');
+  const priceFor = (p) => {
+    if (type !== 'venta') return p.cost || 0;
+    const t = thirds.find((x) => String(x.id) === thirdSel.value);
+    return t && t.price_list === 'mayorista' && p.price2 > 0 ? p.price2 : p.price;
+  };
   const body = $('#lines');
   const taxOpts = (sel) => `<option value="">Sin impuesto</option>${taxes.map((t) => opt(t.id, t.name, sel)).join('')}`;
   const addLine = () => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input class="prod" list="plist" placeholder="${type === 'gasto' ? 'Describa el gasto' : 'Busque por código o nombre'}"></td>
-      ${type === 'gasto' ? `<td><select class="acc">${accounts.map((a) => opt(a.code, a.code + ' · ' + a.name, '5195')).join('')}</select></td>` : ''}
+    tr.innerHTML = `<td><input class="prod" list="plist" placeholder="${type === 'gasto' ? 'Describa el gasto' : 'Escanee o busque por código, barras o nombre'}"></td>
+      ${type === 'gasto' ? `<td><select class="acc">${accounts.map((a) => opt(a.code, a.code + ' · ' + a.name, '519595')).join('')}</select></td>` : ''}
+      ${lotCols ? '<td><input class="lot" style="width:100px"></td><td><input class="exp" type="date"></td>' : ''}
       <td><input class="qty" type="number" step="any" min="0" value="1" style="width:80px"></td><td><input class="price" type="number" step="any" min="0" value="0" style="width:110px"></td>
       <td><input class="disc" type="number" step="any" min="0" max="100" value="0" style="width:70px"></td><td><select class="tax">${taxOpts(taxes.length ? '' : '')}</select></td><td class="n tl">0</td><td><button type="button" class="btn sm sec rm" aria-label="Quitar">×</button></td>`;
     body.appendChild(tr);
     $('.rm', tr).onclick = () => { if (body.children.length > 1) { tr.remove(); calc(); } };
-    $('.prod', tr).addEventListener('change', (e) => {
-      const p = byLabel.get(e.target.value);
-      if (p) { tr._p = p; $('.price', tr).value = type === 'venta' ? p.price : (p.cost || 0); if (p.tax_id) $('.tax', tr).value = p.tax_id; if (type !== 'gasto') { /* descripción = producto */ } calc(); }
+    const resolve = () => {
+      const inp = $('.prod', tr);
+      const p = byLabel.get(inp.value) || byKey.get(inp.value.trim().toLowerCase());
+      if (p) { inp.value = p.code + ' · ' + p.name; tr._p = p; $('.price', tr).value = priceFor(p); if (p.tax_id) $('.tax', tr).value = p.tax_id; calc(); }
       else tr._p = null;
+      return p;
+    };
+    $('.prod', tr).addEventListener('change', resolve);
+    $('.prod', tr).addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault(); // el lector de código de barras envía Enter: agrega la línea en vez de guardar
+      const p = resolve(); if (!p) return;
+      const same = [...body.children].find((o) => o !== tr && o._p === p && !lotCols);
+      if (same) { $('.qty', same).value = +$('.qty', same).value + 1; tr.remove(); calc(); }
+      const last = body.lastElementChild; if (last._p) addLine();
+      body.lastElementChild.querySelector('.prod').focus();
     });
     tr.addEventListener('input', calc);
     return tr;
@@ -283,27 +309,34 @@ async function docForm(el, type) {
     const L = lineVals();
     let sub = 0, tax = 0;
     for (const l of L) { sub += l.base; tax += l.tax; $('.tl', l.tr).textContent = money(l.base + l.tax); }
-    sub = round2(sub); tax = round2(tax); const total = round2(sub + tax);
-    $('#tot').innerHTML = `<div><span>Subtotal</span><span>${money(sub)}</span></div><div><span>Impuestos</span><span>${money(tax)}</span></div><div class="big"><span>Total</span><span>${money(total)}</span></div>`;
+    sub = round2(sub); tax = round2(tax);
+    let wh = 0;
+    for (const cb of $$('.wh:checked')) { const w = whList.find((x) => String(x.id) === cb.value); wh += round2((w.base === 'iva' ? tax : sub) * w.rate / 100); }
+    wh = round2(wh);
+    const total = round2(sub + tax - wh);
+    $('#tot').innerHTML = `<div><span>Subtotal</span><span>${money(sub)}</span></div><div><span>Impuestos</span><span>${money(tax)}</span></div>${wh ? `<div><span>(−) Retenciones</span><span>${money(wh)}</span></div>` : ''}<div class="big"><span>Total</span><span>${money(total)}</span></div>`;
     el._total = total;
     const pm = $('#pm').value;
     if (pm === 'contado') $('#paynow').value = total; else if (pm === 'credito') $('#paynow').value = 0;
     $('#paynow').disabled = pm !== 'parcial';
   }
   $('#pm').onchange = calc; addLine(); calc();
+  $$('.wh').forEach((cb) => (cb.onchange = calc));
+  thirdSel.onchange = () => { for (const tr of body.children) if (tr._p) $('.price', tr).value = priceFor(tr._p); calc(); };
   $('#addl').onclick = () => { addLine().querySelector('.prod').focus(); };
   $('#f').onsubmit = async (e) => {
     e.preventDefault();
     const f = formData(e.target);
-    const lines = lineVals().map((l) => {
+    const lines = lineVals().filter((l) => $('.prod', l.tr).value.trim() || l.pr > 0).map((l) => {
       const label = $('.prod', l.tr).value;
       const p = l.tr._p && byLabel.get(label) ? l.tr._p : null;
       const o = { qty: l.q, price: l.pr, disc_pct: l.dc, tax_id: $('.tax', l.tr).value || '' };
       if (p) o.product_id = p.id; else o.description = label;
       if (type === 'gasto') o.account_code = $('.acc', l.tr).value;
+      if (lotCols) { o.lot = $('.lot', l.tr).value; o.expiry = $('.exp', l.tr).value || null; }
       return o;
     });
-    const body = { type, date: f.date, due_date: f.due_date || f.date, third_id: f.third_id || null, notes: f.notes, ref: f.ref, number: f.number, lines, pay_account: f.pay_account, pay_now: +$('#paynow').value || 0 };
+    const body = { type, date: f.date, due_date: f.due_date || f.date, third_id: f.third_id || null, notes: f.notes, ref: f.ref, number: f.number, lines, withholdings: $$('.wh:checked').map((cb) => +cb.value), pay_account: f.pay_account, pay_now: +$('#paynow').value || 0 };
     $('#save').disabled = true;
     try { const d = await api('POST', '/documents', body); toast(`${TYPE_NAME[type]} ${d.number} guardada`); location.hash = plural; setTimeout(() => showDoc(d.id), 300); }
     catch (er) { fail(er); $('#save').disabled = false; }
@@ -333,7 +366,8 @@ function thirdForm(t, kind, done) {
     <div><label>Nombre *</label><input name="name" required value="${esc(t.name)}"></div><div><label>Empresa</label><input name="company" value="${esc(t.company)}"></div>
     <div><label>Documento / NIT</label><input name="doc_id" value="${esc(t.doc_id)}"></div><div><label>Tipo</label><select name="kind">${opt('cliente', 'Cliente', t.kind)}${opt('proveedor', 'Proveedor', t.kind)}${opt('ambos', 'Cliente y proveedor', t.kind)}</select></div>
     <div><label>Email</label><input name="email" type="email" value="${esc(t.email)}"></div><div><label>Teléfono</label><input name="phone" value="${esc(t.phone)}"></div>
-    <div style="grid-column:1/-1"><label>Dirección</label><input name="address" value="${esc(t.address)}"></div></div>
+    <div><label>Lista de precios</label><select name="price_list">${opt('detal', 'Detal (público)', t.price_list)}${opt('mayorista', 'Mayorista (peluquerías, revendedores)', t.price_list)}</select></div>
+    <div><label>Dirección</label><input name="address" value="${esc(t.address)}"></div></div>
     ${t.id ? `<p><label><input type="checkbox" name="active" style="width:auto" ${t.active ? 'checked' : ''}> Activo</label></p>` : ''}
     <div class="actions"><button class="btn">Guardar</button>${t.id ? '<button type="button" class="btn sec" id="hist">Ver movimientos</button>' : ''}</div></form>`, { onMount: (el, close) => {
     $('#f', el).onsubmit = async (e) => {
@@ -390,8 +424,8 @@ VIEWS.productos = async (el) => {
   el.innerHTML = `<div class="card"><div class="row"><div><input id="q" placeholder="Buscar por código o nombre"></div>${editor ? '<div class="auto"><button class="btn sec" id="imp">Importar CSV</button></div>' : ''}</div></div><div id="list"></div>`;
   const load = async () => {
     const rows = await api('GET', '/products' + qs({ q: $('#q').value, all: editor ? '1' : '' }));
-    const cols = [{ h: 'Código', k: 'code' }, { h: 'Nombre', k: (r) => r.name + (r.active ? '' : ' (inactivo)') }, { h: 'Categoría', k: (r) => r.category || '' },
-      { h: 'Precio', k: 'price', m: 1 }, { h: 'Existencia', k: (r) => (r.is_service ? 'Servicio' : qty(r.stock) + ' ' + esc(r.unit || '')), raw: 1, n: 1 }];
+    const cols = [{ h: 'Código', k: 'code' }, { h: 'Nombre', k: (r) => r.name + (r.active ? '' : ' (inactivo)') }, { h: 'Marca', k: (r) => r.brand || '' }, { h: 'Categoría', k: (r) => r.category || '' },
+      { h: 'Precio detal', k: 'price', m: 1 }, { h: 'Mayorista', k: 'price2', m: 1 }, { h: 'Existencia', k: (r) => (r.is_service ? 'Servicio' : qty(r.stock) + ' ' + esc(r.unit || '')), raw: 1, n: 1 }];
     if (editor) cols.push({ h: 'Costo prom.', k: 'cost', m: 1 });
     $('#list').innerHTML = table(cols, rows, { onclick: editor, empty: 'Sin productos' });
     if (editor) $$('#list tbody tr').forEach((tr) => (tr.onclick = () => productForm(rows[tr.dataset.i], load)));
@@ -399,18 +433,19 @@ VIEWS.productos = async (el) => {
   $('#q').oninput = () => load().catch(fail);
   if (editor) {
     $('#new').onclick = () => productForm(null, load);
-    $('#imp').onclick = () => importCsv('productos', [], 'code;name;category;unit;price;min_stock;stock;cost  (stock y cost cargan inventario inicial)', load);
+    $('#imp').onclick = () => importCsv('productos', [], 'code;name;brand;category;unit;price;price2;iva;barcode;nso;min_stock;stock;cost;lot;expiry  (iva = 19, 5 o 0; si falta se usa 19 %. stock y cost cargan inventario inicial; expiry = AAAA-MM-DD)', load);
   }
   await load();
 };
 function productForm(p, done) {
-  p = p || { code: '', name: '', unit: 'und', price: 0, min_stock: 0, is_service: S.cfg.use_inventory !== '1' ? 1 : 0, active: 1 };
+  p = p || { code: '', name: '', unit: 'und', price: 0, min_stock: 0, tax_id: (S.cfg.taxes[0] || {}).id, is_service: S.cfg.use_inventory !== '1' ? 1 : 0, active: 1 };
   const cats = S.cfg.categories, taxes = S.cfg.taxes;
   modal(p.id ? 'Editar producto' : 'Nuevo producto o servicio', `<form id="f"><div class="grid g3">
-    <div><label>Código *</label><input name="code" required value="${esc(p.code)}"></div><div style="grid-column:span 2"><label>Nombre *</label><input name="name" required value="${esc(p.name)}"></div>
+    <div><label>Código / SKU *</label><input name="code" required value="${esc(p.code)}"></div><div style="grid-column:span 2"><label>Nombre *</label><input name="name" required value="${esc(p.name)}"></div>
     <div><label>Categoría</label><select name="category_id"><option value="">—</option>${cats.map((c) => opt(c.id, c.name, p.category_id)).join('')}</select></div>
     <div><label>Unidad</label><input name="unit" value="${esc(p.unit)}"></div><div><label>Impuesto</label><select name="tax_id"><option value="">Sin impuesto</option>${taxes.map((t) => opt(t.id, t.name, p.tax_id)).join('')}</select></div>
-    <div><label>Precio de venta</label><input name="price" type="number" step="any" min="0" value="${p.price}"></div><div><label>Stock mínimo</label><input name="min_stock" type="number" step="any" min="0" value="${p.min_stock}"></div>
+    <div><label>Marca</label><input name="brand" value="${esc(p.brand)}" placeholder="Ej: Loreal, Kerastase…"></div><div><label>Código de barras</label><input name="barcode" value="${esc(p.barcode)}"></div><div><label>Notificación sanitaria (INVIMA)</label><input name="nso" value="${esc(p.nso)}" placeholder="NSOC…"></div>
+    <div><label>Precio detal</label><input name="price" type="number" step="any" min="0" value="${p.price}"></div><div><label>Precio mayorista</label><input name="price2" type="number" step="any" min="0" value="${p.price2 || 0}"></div><div><label>Stock mínimo</label><input name="min_stock" type="number" step="any" min="0" value="${p.min_stock}"></div>
     <div><label>Tipo</label><select name="is_service">${opt(0, 'Producto (con inventario)', p.is_service ? 1 : 0)}${opt(1, 'Servicio (sin inventario)', p.is_service ? 1 : 0)}</select></div></div>
     ${p.id ? `<p class="help">Existencia: <b>${qty(p.stock)}</b> · Costo promedio: <b>${money(p.cost)}</b></p><p><label><input type="checkbox" name="active" style="width:auto" ${p.active ? 'checked' : ''}> Activo</label></p>` : ''}
     <div class="actions"><button class="btn">Guardar</button>${p.id && !p.is_service ? '<button type="button" class="btn sec" id="adj">Ajustar existencias</button>' : ''}</div></form>`, { onMount: (el, close) => {
@@ -425,13 +460,14 @@ function adjustForm(p, done) {
   modal('Ajustar existencias · ' + p.name, `<form id="f"><p class="help">Existencia actual: <b>${qty(p.stock)}</b>. Use cantidad positiva para sumar y negativa para restar.</p><div class="grid g2">
     <div><label>Motivo</label><select name="kind">${opt('inicial', 'Inventario inicial')}${opt('ajuste', 'Ajuste (pérdida, conteo, regalo…)')}</select></div><div><label>Fecha</label><input type="date" name="date" value="${todayStr()}"></div>
     <div><label>Cantidad (+/−)</label><input name="qty" type="number" step="any" required></div><div><label>Costo unitario (para sumar)</label><input name="unit_cost" type="number" step="any" min="0" value="${p.cost || ''}"></div></div>
+    ${S.cfg.track_lots === '1' ? `<div class="grid g2"><div><label>Lote (al sumar)</label><input name="lot"></div><div><label>Vence (al sumar)</label><input name="expiry" type="date"></div></div>` : ''}
     <p><label>Nota</label><input name="notes"></p><button class="btn">Aplicar</button></form>`, { small: true, onMount: (el, close) => {
     $('#f', el).onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/products/adjust', { ...formData(e.target), product_id: p.id }); toast('Existencias ajustadas'); close(); done(); } catch (er) { fail(er); } };
   } });
 }
 
 VIEWS.inventario = async (el, sub) => {
-  const tabs = [['valorizado', 'Existencias valorizadas'], ['kardex', 'Kardex']];
+  const tabs = [['valorizado', 'Existencias valorizadas'], ['kardex', 'Kardex'], ...(S.cfg.track_lots === '1' ? [['vencimientos', 'Lotes y vencimientos']] : [])];
   const cur = sub || 'valorizado';
   el.innerHTML = `<div class="tabs">${tabs.map((t) => `<a href="#inventario/${t[0]}" class="${t[0] === cur ? 'on' : ''}">${t[1]}</a>`).join('')}</div><div id="in"></div>`;
   const box = $('#in');
@@ -441,6 +477,16 @@ VIEWS.inventario = async (el, sub) => {
     $('#csv').onclick = () => csvDownload('inventario.csv', ['Código', 'Producto', 'Categoría', 'Existencia', 'Costo', 'Valor'], r.rows.map((x) => [x.code, x.name, x.category, x.stock, x.cost, x.value]));
     box.innerHTML = table([{ h: 'Código', k: 'code' }, { h: 'Producto', k: 'name' }, { h: 'Categoría', k: (x) => x.category || '' }, { h: 'Existencia', k: 'stock', q: 1 }, { h: 'Costo prom.', k: 'cost', m: 1 }, { h: 'Valor', k: 'value', m: 1 },
       { h: '', raw: 1, k: (x) => (x.min_stock > 0 && x.stock <= x.min_stock ? '<span class="tag err">Bajo mínimo</span>' : '') }], r.rows, { foot: `<td colspan="5">Valor total del inventario</td><td class="n">${money(r.total_value)}</td><td></td>`, empty: 'No hay productos con inventario' });
+  } else if (cur === 'vencimientos') {
+    setTop('');
+    box.innerHTML = `<div class="card"><div class="row"><div><label>Marcar "por vencer" a</label><select id="vd">${[30, 60, 90, 180].map((d) => opt(d, d + ' días', 90)).join('')}</select></div></div></div><div id="vr"></div>`;
+    const go = async () => {
+      const r = await api('GET', '/reports/lots' + qs({ days: $('#vd').value }));
+      const tag = (x) => ({ vencido: '<span class="tag err">Vencido</span>', 'por vencer': '<span class="tag warn">Por vencer</span>', vigente: '<span class="tag ok">Vigente</span>', 'sin fecha': '<span class="tag">Sin fecha</span>' }[x]);
+      $('#vr').innerHTML = `<p class="help">Vencido: <b class="neg">${money(r.expired_value)}</b> (${r.expired_count} lotes) · Por vencer: <b>${money(r.expiring_value)}</b> (${r.expiring_count} lotes). La venta descuenta primero el lote que vence antes.</p>` +
+        table([{ h: 'Producto', k: (x) => x.code + ' · ' + x.name }, { h: 'Marca', k: (x) => x.brand || '' }, { h: 'Lote', k: (x) => x.lot || '' }, { h: 'Vence', k: (x) => x.expiry || '—' }, { h: 'Días', k: (x) => (x.days_left ?? ''), n: 1 }, { h: 'Cant.', k: 'qty_left', q: 1 }, { h: 'Valor', k: 'value', m: 1 }, { h: '', k: (x) => tag(x.status), raw: 1 }], r.rows, { empty: 'No hay lotes registrados. Capture lote y vencimiento al registrar una compra.' });
+    };
+    $('#vd').onchange = () => go().catch(fail); await go();
   } else {
     setTop('');
     const prods = (await api('GET', '/products')).filter((p) => !p.is_service);

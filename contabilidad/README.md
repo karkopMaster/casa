@@ -14,21 +14,22 @@ Variables: `PORT`, `HOST` (por defecto 127.0.0.1; use `0.0.0.0` y un proxy HTTPS
 La primera vez se abre un asistente: nombre de empresa, tipo de negocio (con inventario / mixto / solo servicios), moneda, impuesto y usuario administrador. No hay usuarios ni claves por defecto.
 
 ## Qué incluye
-- **Ventas, compras y gastos** con descuentos por línea, impuestos configurables, contado / crédito / abono, impresión de factura y anulación.
-- **Cobros y pagos** contra cada documento (caja o bancos), con anulación.
-- **Inventario** con costo promedio ponderado, kardex, existencias valorizadas, alertas de stock mínimo, ajustes e inventario inicial. Productos y servicios (sin inventario).
-- **Contabilidad de partida doble automática**: cada operación genera su asiento; libro diario, mayor, balance de prueba, estado de resultados y balance general. Plan de cuentas editable y asientos manuales.
-- **Informes**: ventas/compras y utilidad por producto, categoría, cliente, día, mes o vendedor; cartera por edades (cuentas por cobrar y por pagar); exportación a CSV.
-- **Clientes y proveedores**, importación masiva desde CSV/Excel (guardar como CSV) de productos y terceros.
-- **Usuarios y roles**: administrador, contador, vendedor (el vendedor no ve costos ni contabilidad).
-- **Cierre de período** (bloquea fechas anteriores) y **descarga de copia de seguridad**.
+- **Ventas, compras y gastos** con descuentos, IVA (19 %, 5 %, excluido), contado / crédito / abono, impresión y anulación.
+- **Colombia listo para usar:** plan de cuentas PUC, pesos sin decimales, retenciones (retefuente, ReteIVA, ReteICA) en compras y ventas con sus cuentas, medios de pago Caja / Bancos / Nequi-Daviplata / Datáfono.
+- **Productos para el cabello:** marca, código de barras (con lector: escanear agrega la línea y suma cantidad), notificación sanitaria INVIMA, **lotes y fechas de vencimiento con salida FEFO** (primero en vencer), alerta de vencidos y por vencer, **lista de precios detal y mayorista** por cliente (peluquerías), categorías típicas precargadas, informe por marca.
+- **Inventario** con costo promedio, kardex, existencias valorizadas, stock mínimo, ajustes y mermas.
+- **Contabilidad de partida doble automática**: libro diario, mayor, balance de prueba, estado de resultados, balance general; plan editable y asientos manuales.
+- **Informes** de ventas/utilidad por producto, categoría, marca, cliente, día, mes o vendedor; cartera por edades; CSV.
+- **Usuarios y roles** (administrador, contador, vendedor sin acceso a costos), cierre de período, copia de seguridad, importación CSV.
 
-## Adaptarlo a su negocio
-Configuración → *Cuentas por defecto* asigna qué cuenta de su plan usa cada operación (caja, bancos, clientes, proveedores, inventario, impuestos, ingresos, costo de ventas…), de modo que puede usar cualquier plan contable. Impuestos y categorías se editan libremente; si no maneja inventario, desactívelo en Configuración → Empresa.
+## Lo que NO hace (importante en Colombia)
+- **No emite factura electrónica ante la DIAN.** Para eso hace falta un proveedor tecnológico autorizado (Siigo, Alegra, Factus, etc.) con credenciales propias. Hoy puede guardar el número de la factura electrónica en el campo de referencia y el documento impreso dice "control interno". Integrarlo con un proveedor es el siguiente paso natural.
+- **Las tarifas de retención y el plan de cuentas son de ejemplo**: confírmelas con su contador (dependen del régimen: ordinario, simple, no responsable de IVA, y del municipio para ICA).
+- No liquida nómina, ni declaraciones, ni cierre contable anual.
 
 ## Importar su Excel de inventario
 Exporte las hojas *Productos* y *Clientes/Proveedores* a CSV y use el botón **Importar CSV**:
-- Productos: `code;name;category;unit;price;min_stock;stock;cost` (si trae `stock` y `cost` se carga el inventario inicial).
+- Productos: `code;name;brand;category;unit;price;price2;iva;barcode;nso;min_stock;stock;cost;lot;expiry` (si trae `stock` y `cost` se carga el inventario inicial, con su lote y vencimiento AAAA-MM-DD; `iva` 19, 5 o 0, por defecto 19).
 - Terceros: `name;company;doc_id;email;phone;address;kind`.
 
 ## Estructura

@@ -40,24 +40,35 @@ function nextNumber(db, type) {
 }
 
 // ---------- plan de cuentas ----------
+// Plan Único de Cuentas (PUC) colombiano, versión comercial simplificada. Es editable desde la aplicación.
 const DEFAULT_ACCOUNTS = [
-  ['1105', 'Caja', 'activo'], ['1110', 'Bancos', 'activo'], ['1305', 'Clientes (cuentas por cobrar)', 'activo'],
-  ['1355', 'IVA descontable (impuesto en compras)', 'activo'], ['1435', 'Inventario de mercancías', 'activo'],
-  ['1540', 'Equipo y mobiliario', 'activo'],
-  ['2105', 'Obligaciones financieras', 'pasivo'], ['2205', 'Proveedores (cuentas por pagar)', 'pasivo'],
-  ['2335', 'Costos y gastos por pagar', 'pasivo'], ['2408', 'IVA generado (impuesto en ventas)', 'pasivo'],
-  ['2505', 'Obligaciones laborales', 'pasivo'],
-  ['3105', 'Capital social', 'patrimonio'], ['3705', 'Utilidades acumuladas', 'patrimonio'],
-  ['4135', 'Ingresos por ventas', 'ingreso'], ['4210', 'Otros ingresos', 'ingreso'],
-  ['5105', 'Gastos de personal', 'gasto'], ['5120', 'Arrendamientos', 'gasto'], ['5135', 'Servicios (luz, agua, internet)', 'gasto'],
-  ['5195', 'Gastos diversos', 'gasto'], ['5199', 'Ajustes de inventario', 'gasto'], ['5305', 'Gastos financieros', 'gasto'],
-  ['6135', 'Costo de ventas', 'costo'],
+  ['110505', 'Caja general', 'activo'], ['111005', 'Bancos - moneda nacional', 'activo'],
+  ['111010', 'Billeteras digitales (Nequi, Daviplata)', 'activo'], ['111015', 'Datáfono / pasarela de pagos (por liquidar)', 'activo'],
+  ['130505', 'Clientes nacionales', 'activo'], ['135515', 'Retención en la fuente a favor', 'activo'],
+  ['135517', 'Impuesto a las ventas retenido (ReteIVA a favor)', 'activo'], ['135518', 'Impuesto de industria y comercio retenido (ReteICA a favor)', 'activo'],
+  ['143505', 'Mercancías no fabricadas por la empresa', 'activo'], ['152405', 'Equipo de oficina', 'activo'], ['154005', 'Muebles y vitrinas', 'activo'],
+  ['210505', 'Obligaciones bancarias', 'pasivo'], ['220505', 'Proveedores nacionales', 'pasivo'], ['233525', 'Costos y gastos por pagar', 'pasivo'],
+  ['236540', 'Retención en la fuente por compras', 'pasivo'], ['236525', 'Retención en la fuente por servicios', 'pasivo'], ['236515', 'Retención en la fuente por honorarios', 'pasivo'],
+  ['236701', 'Impuesto a las ventas retenido (ReteIVA por pagar)', 'pasivo'], ['236801', 'Impuesto de industria y comercio retenido (ReteICA por pagar)', 'pasivo'],
+  ['240801', 'IVA generado (por pagar)', 'pasivo'], ['240802', 'IVA descontable', 'pasivo'], ['250501', 'Salarios por pagar', 'pasivo'],
+  ['310505', 'Capital social / aportes del propietario', 'patrimonio'], ['370505', 'Utilidades acumuladas', 'patrimonio'],
+  ['413595', 'Ingresos por venta de mercancías', 'ingreso'], ['421005', 'Intereses y otros ingresos financieros', 'ingreso'], ['429595', 'Otros ingresos', 'ingreso'],
+  ['510506', 'Sueldos y salarios', 'gasto'], ['512010', 'Arrendamientos', 'gasto'], ['513525', 'Acueducto y energía', 'gasto'], ['513535', 'Teléfono e internet', 'gasto'],
+  ['513550', 'Transporte y fletes', 'gasto'], ['513595', 'Otros servicios', 'gasto'], ['519505', 'Publicidad y propaganda', 'gasto'], ['519599', 'Ajustes y pérdidas de inventario (mermas, vencidos)', 'gasto'],
+  ['519595', 'Gastos diversos', 'gasto'], ['530505', 'Gastos bancarios y comisiones', 'gasto'], ['613595', 'Costo de ventas de mercancías', 'costo'],
 ];
 const DEFAULT_ROLES = {
-  acc_caja: '1105', acc_bancos: '1110', acc_cxc: '1305', acc_cxp: '2205', acc_inventario: '1435',
-  acc_iva_compras: '1355', acc_iva_ventas: '2408', acc_ingresos: '4135', acc_costo_ventas: '6135',
-  acc_capital: '3105', acc_ajuste_inv: '5199', acc_gastos_compras: '5135', acc_gastos_diversos: '5195',
+  acc_caja: '110505', acc_bancos: '111005', acc_cxc: '130505', acc_cxp: '220505', acc_inventario: '143505',
+  acc_iva_compras: '240802', acc_iva_ventas: '240801', acc_ingresos: '413595', acc_costo_ventas: '613595',
+  acc_capital: '310505', acc_ajuste_inv: '519599', acc_gastos_compras: '513595', acc_gastos_diversos: '519595',
 };
+// Retenciones: tarifas de ejemplo; cada empresa debe confirmarlas con su contador (dependen del régimen y del municipio).
+const DEFAULT_WITHHOLDINGS = [
+  ['Retefuente por compras 2,5%', 2.5, 'subtotal', 'compra', '236540'], ['Retefuente por servicios 4%', 4, 'subtotal', 'compra', '236525'],
+  ['Retefuente por honorarios 11%', 11, 'subtotal', 'compra', '236515'], ['ReteIVA 15% del IVA', 15, 'iva', 'compra', '236701'], ['ReteICA 0,966% (verifique su municipio)', 0.966, 'subtotal', 'compra', '236801'],
+  ['Retefuente que nos practican', 2.5, 'subtotal', 'venta', '135515'], ['ReteIVA que nos practican', 15, 'iva', 'venta', '135517'], ['ReteICA que nos practican', 0.966, 'subtotal', 'venta', '135518'],
+];
+const HAIR_CATEGORIES = ['Shampoo', 'Acondicionador', 'Tratamientos y mascarillas', 'Keratina y alisados', 'Tintes y coloración', 'Styling (geles, ceras, sprays)', 'Aceites y serums', 'Herramientas (secadores, planchas)', 'Accesorios', 'Kits y combos'];
 const natureOf = (type) => (type === 'activo' || type === 'costo' || type === 'gasto' ? 'D' : 'C');
 const ACCOUNT_TYPES = ['activo', 'pasivo', 'patrimonio', 'ingreso', 'costo', 'gasto'];
 
@@ -144,6 +155,36 @@ function stockOut(db, product, date, kind, qty, doc_id, notes, costOverride, val
   return outVal;
 }
 
+// ---------- lotes y vencimientos (FEFO: primero en vencer, primero en salir) ----------
+const lotsOn = (db) => getSetting(db, 'track_lots', '0') === '1';
+function lotAdd(db, productId, lot, expiry, qty, unitCost, docId, date) {
+  if (!lotsOn(db) || (!lot && !expiry)) return;
+  if (expiry) needDate(expiry, 'fecha de vencimiento');
+  db.prepare('INSERT INTO lots(product_id,lot,expiry,qty,qty_left,unit_cost,doc_id,date) VALUES(?,?,?,?,?,?,?,?)')
+    .run(productId, lot || null, expiry || null, qty, qty, unitCost, docId || null, date);
+}
+function lotsConsume(db, productId, qty, docId) {
+  if (!lotsOn(db)) return;
+  let left = qty;
+  for (const l of db.prepare('SELECT * FROM lots WHERE product_id=? AND qty_left>0 ORDER BY expiry IS NULL, expiry, id').all(productId)) {
+    if (left <= 1e-9) break;
+    const take = Math.min(left, l.qty_left);
+    db.prepare('UPDATE lots SET qty_left=ROUND(qty_left-?,4) WHERE id=?').run(take, l.id);
+    if (docId) db.prepare('INSERT INTO lot_moves(doc_id,lot_id,qty) VALUES(?,?,?)').run(docId, l.id, take);
+    left -= take;
+  }
+}
+function lotsRestore(db, docId) {
+  for (const m of db.prepare('SELECT * FROM lot_moves WHERE doc_id=?').all(docId)) db.prepare('UPDATE lots SET qty_left=ROUND(qty_left+?,4) WHERE id=?').run(m.qty, m.lot_id);
+  db.prepare('DELETE FROM lot_moves WHERE doc_id=?').run(docId);
+}
+function lotsVoidPurchase(db, docId) {
+  for (const l of db.prepare('SELECT * FROM lots WHERE doc_id=?').all(docId)) {
+    if (l.qty_left < l.qty - 1e-9) throw bad(`No se puede anular: el lote ${l.lot || ''} ya se vendió en parte`);
+    db.prepare('UPDATE lots SET qty_left=0 WHERE id=?').run(l.id);
+  }
+}
+
 function adjustStock(db, user, b) {
   return tx(db, () => {
     const p = db.prepare('SELECT * FROM products WHERE id=?').get(num(b.product_id));
@@ -160,6 +201,7 @@ function adjustStock(db, user, b) {
       if (uc < 0) throw bad('El costo no puede ser negativo');
       if (kind === 'inicial' && !(uc > 0)) throw bad('El inventario inicial requiere costo unitario');
       const val = stockIn(db, p, date, kind, qty, uc, null, b.notes);
+      lotAdd(db, p.id, String(b.lot || '').trim() || null, b.expiry || null, qty, uc, null, date);
       if (val > 0) postEntry(db, { date, description: `${kind === 'inicial' ? 'Inventario inicial' : 'Ajuste de inventario'}: ${p.name}`, source: 'inventario', source_id: p.id, user_id: user.id,
         lines: [{ account_code: inv, debit: val }, { account_code: acct(db, kind === 'inicial' ? 'acc_capital' : 'acc_ajuste_inv'), credit: val }] });
     } else {
@@ -167,6 +209,7 @@ function adjustStock(db, user, b) {
       const out = -qty;
       if (p.stock < out && getSetting(db, 'allow_negative_stock', '0') !== '1') throw bad(`Existencia insuficiente de ${p.name} (hay ${p.stock})`);
       const val = stockOut(db, p, date, 'ajuste', out, null, b.notes);
+      lotsConsume(db, p.id, out, null);
       if (val > 0) postEntry(db, { date, description: `Ajuste de inventario: ${p.name}`, source: 'inventario', source_id: p.id, user_id: user.id,
         lines: [{ account_code: acct(db, 'acc_ajuste_inv'), debit: val }, { account_code: inv, credit: val }] });
     }
@@ -201,15 +244,17 @@ function setupCompany(db, b) {
     for (const [k, v] of Object.entries(DEFAULT_ROLES)) setSetting(db, k, v);
     const s = {
       company_name: name, company_nit: b.company_nit || '', company_address: b.company_address || '', company_phone: b.company_phone || '',
-      currency: String(b.currency || '$').slice(0, 5), profile,
+      currency: String(b.currency || '$').slice(0, 5), decimals: '0', country: 'CO', sector: b.sector === 'general' ? 'general' : 'cabello', profile,
+      dian_text: '', print_footer: 'Documento de control interno. La factura electrónica se emite con su proveedor tecnológico autorizado por la DIAN.',
       use_inventory: profile === 'servicios' ? '0' : '1', allow_negative_stock: '0', lock_date: '',
       pfx_venta: 'FV-', pfx_compra: 'FC-', pfx_gasto: 'GA-', next_venta: 1, next_compra: 1, next_gasto: 1,
     };
     for (const [k, v] of Object.entries(s)) setSetting(db, k, v);
-    const rate = num(b.tax_rate, 0);
-    if (rate > 0) db.prepare('INSERT INTO taxes(name,rate) VALUES(?,?)').run(String(b.tax_name || 'IVA') + ' ' + rate + '%', rate);
-    db.prepare('INSERT INTO taxes(name,rate) VALUES(?,?)').run('Sin impuesto', 0);
-    db.prepare('INSERT INTO categories(name) VALUES(?)').run('General');
+    for (const [n, r] of [['IVA 19%', 19], ['IVA 5%', 5], ['Excluido / exento (0%)', 0]]) db.prepare('INSERT INTO taxes(name,rate) VALUES(?,?)').run(n, r);
+    for (const w of DEFAULT_WITHHOLDINGS) db.prepare('INSERT INTO withholdings(name,rate,base,applies,account_code) VALUES(?,?,?,?,?)').run(...w);
+    const hair = b.sector !== 'general';
+    for (const c of hair ? HAIR_CATEGORIES : ['General']) db.prepare('INSERT INTO categories(name) VALUES(?)').run(c);
+    setSetting(db, 'track_lots', hair ? '1' : '0');
     db.prepare("INSERT INTO thirds(kind,name) VALUES('cliente','Cliente mostrador')").run();
     const { salt, hash } = hashPassword(String(b.password));
     db.prepare("INSERT INTO users(username,name,salt,hash,role) VALUES(?,?,?,?, 'admin')").run(username, String(b.admin_name || username), salt, hash);
@@ -218,6 +263,6 @@ function setupCompany(db, b) {
 
 module.exports = {
   HttpError, bad, round2, round4, num, isDate, today, needDate, getSettings, getSetting, setSetting, nextNumber,
-  DEFAULT_ACCOUNTS, DEFAULT_ROLES, ACCOUNT_TYPES, natureOf, acct, checkLock, postEntry, reverseEntries,
-  stockIn, stockOut, adjustStock, hashPassword, checkPassword, isSetup, setupCompany,
+  DEFAULT_ACCOUNTS, DEFAULT_ROLES, DEFAULT_WITHHOLDINGS, ACCOUNT_TYPES, natureOf, acct, checkLock, postEntry, reverseEntries,
+  stockIn, stockOut, adjustStock, lotsOn, lotAdd, lotsConsume, lotsRestore, lotsVoidPurchase, hashPassword, checkPassword, isSetup, setupCompany,
 };

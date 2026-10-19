@@ -54,6 +54,7 @@ function build(db) {
   function publicSettings() {
     const s = C.getSettings(db);
     s.taxes = db.prepare('SELECT * FROM taxes WHERE active=1 ORDER BY id').all();
+    s.withholdings = db.prepare('SELECT * FROM withholdings WHERE active=1 ORDER BY applies, id').all();
     s.categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
     s.pay_accounts = db.prepare("SELECT code,name FROM accounts WHERE type='activo' AND active=1 AND code LIKE '11%' ORDER BY code").all();
     return s;
@@ -62,14 +63,15 @@ function build(db) {
   // ---------- configuración ----------
   on('GET', '/api/settings', ALL, () => publicSettings());
   const SETTING_KEYS = ['company_name', 'company_nit', 'company_address', 'company_phone', 'currency', 'allow_negative_stock', 'lock_date',
-    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', ...Object.keys(C.DEFAULT_ROLES)];
+    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
   on('PUT', '/api/settings', ADMIN, ({ body }) => tx(db, () => {
     for (const k of SETTING_KEYS) {
       if (body[k] === undefined) continue;
       let v = String(body[k]);
       if (k === 'lock_date' && v) C.needDate(v, 'fecha de cierre');
       if (k.startsWith('acc_') && !db.prepare('SELECT 1 FROM accounts WHERE code=?').get(v)) throw bad(`La cuenta ${v} no existe`);
-      if (k === 'allow_negative_stock' || k === 'use_inventory') v = v === '1' || v === 'true' ? '1' : '0';
+      if (k === 'decimals') v = String(Math.min(2, Math.max(0, parseInt(v, 10) || 0)));
+      if (k === 'allow_negative_stock' || k === 'use_inventory' || k === 'track_lots') v = v === '1' || v === 'true' ? '1' : '0';
       C.setSetting(db, k, v);
     }
     return publicSettings();
@@ -85,6 +87,16 @@ function build(db) {
     else { db.prepare('UPDATE products SET tax_id=NULL WHERE tax_id=?').run(params.id); db.prepare('DELETE FROM taxes WHERE id=?').run(params.id); }
     return { ok: true };
   });
+  on('POST', '/api/withholdings', ADMIN, ({ body }) => {
+    const rate = num(body.rate, -1);
+    if (!str(body.name) || rate < 0 || rate > 100) throw bad('Indique nombre y una tarifa entre 0 y 100');
+    if (!['compra', 'venta'].includes(body.applies)) throw bad('Indique si aplica a compras o a ventas');
+    if (!['subtotal', 'iva'].includes(body.base)) throw bad('La base es el subtotal o el IVA');
+    if (!db.prepare('SELECT 1 FROM accounts WHERE code=?').get(String(body.account_code))) throw bad('La cuenta no existe');
+    const r = db.prepare('INSERT INTO withholdings(name,rate,base,applies,account_code) VALUES(?,?,?,?,?)').run(str(body.name), rate, body.base, body.applies, String(body.account_code));
+    return db.prepare('SELECT * FROM withholdings WHERE id=?').get(Number(r.lastInsertRowid));
+  });
+  on('DELETE', '/api/withholdings/:id', ADMIN, ({ params }) => { db.prepare('UPDATE withholdings SET active=0 WHERE id=?').run(params.id); return { ok: true }; });
   on('POST', '/api/categories', ACC, ({ body }) => {
     if (!str(body.name)) throw bad('Indique el nombre');
     try { const r = db.prepare('INSERT INTO categories(name) VALUES(?)').run(str(body.name)); return { id: Number(r.lastInsertRowid), name: str(body.name) }; }
@@ -140,14 +152,14 @@ function build(db) {
   const thirdArgs = (b) => {
     if (!str(b.name)) throw bad('Indique el nombre');
     const kind = ['cliente', 'proveedor', 'ambos'].includes(b.kind) ? b.kind : 'cliente';
-    return [kind, str(b.doc_id), str(b.name), str(b.company), str(b.email), str(b.phone), str(b.address)];
+    return [kind, str(b.doc_id), str(b.name), str(b.company), str(b.email), str(b.phone), str(b.address), b.price_list === 'mayorista' ? 'mayorista' : 'detal'];
   };
   on('POST', '/api/thirds', ALL, ({ body }) => {
-    const r = db.prepare('INSERT INTO thirds(kind,doc_id,name,company,email,phone,address) VALUES(?,?,?,?,?,?,?)').run(...thirdArgs(body));
+    const r = db.prepare('INSERT INTO thirds(kind,doc_id,name,company,email,phone,address,price_list) VALUES(?,?,?,?,?,?,?,?)').run(...thirdArgs(body));
     return db.prepare('SELECT * FROM thirds WHERE id=?').get(Number(r.lastInsertRowid));
   });
   on('PUT', '/api/thirds/:id', ALL, ({ params, body }) => {
-    db.prepare('UPDATE thirds SET kind=?,doc_id=?,name=?,company=?,email=?,phone=?,address=?,active=? WHERE id=?')
+    db.prepare('UPDATE thirds SET kind=?,doc_id=?,name=?,company=?,email=?,phone=?,address=?,price_list=?,active=? WHERE id=?')
       .run(...thirdArgs(body), body.active === false || body.active === 0 ? 0 : 1, params.id);
     return db.prepare('SELECT * FROM thirds WHERE id=?').get(params.id);
   });
@@ -162,10 +174,10 @@ function build(db) {
   on('GET', '/api/products', ALL, ({ query, user }) => {
     const q = '%' + String(query.q || '').trim() + '%';
     let sql = `SELECT p.*, c.name category, t.rate tax_rate FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN taxes t ON t.id=p.tax_id
-      WHERE (p.name LIKE ? OR p.code LIKE ?)`;
+      WHERE (p.name LIKE ? OR p.code LIKE ? OR p.barcode LIKE ? OR p.brand LIKE ?)`;
     if (query.all !== '1') sql += ' AND p.active=1';
-    const rows = db.prepare(sql + ' ORDER BY p.name LIMIT 1000').all(q, q);
-    if (user.role === 'vendedor') for (const r of rows) delete r.cost; // el vendedor no ve costos
+    const rows = db.prepare(sql + ' ORDER BY p.name LIMIT 1000').all(q, q, q, q);
+    if (user.role === 'vendedor') for (const r of rows) { delete r.cost; } // el vendedor no ve costos
     return rows;
   });
   const productArgs = (b, id) => {
@@ -173,10 +185,13 @@ function build(db) {
     if (!code || !name) throw bad('Código y nombre son obligatorios');
     if (num(b.price) < 0 || num(b.min_stock) < 0) throw bad('Precio y mínimo no pueden ser negativos');
     if (db.prepare('SELECT 1 FROM products WHERE code=? AND id<>?').get(code, id || 0)) throw bad('Ya existe un producto con ese código');
-    return [code, name, b.category_id ? num(b.category_id) : null, str(b.unit) || 'und', num(b.price), num(b.min_stock), b.tax_id ? num(b.tax_id) : null, b.is_service ? 1 : 0];
+    const barcode = str(b.barcode);
+    if (barcode && db.prepare('SELECT 1 FROM products WHERE barcode=? AND id<>?').get(barcode, id || 0)) throw bad('Ya existe un producto con ese código de barras');
+    if (num(b.price2) < 0) throw bad('El precio mayorista no puede ser negativo');
+    return [code, name, b.category_id ? num(b.category_id) : null, str(b.unit) || 'und', num(b.price), num(b.min_stock), b.tax_id ? num(b.tax_id) : null, b.is_service ? 1 : 0, str(b.brand), barcode, str(b.nso), num(b.price2)];
   };
   on('POST', '/api/products', ACC, ({ body }) => {
-    const r = db.prepare('INSERT INTO products(code,name,category_id,unit,price,min_stock,tax_id,is_service) VALUES(?,?,?,?,?,?,?,?)').run(...productArgs(body));
+    const r = db.prepare('INSERT INTO products(code,name,category_id,unit,price,min_stock,tax_id,is_service,brand,barcode,nso,price2) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(...productArgs(body));
     return db.prepare('SELECT * FROM products WHERE id=?').get(Number(r.lastInsertRowid));
   });
   on('PUT', '/api/products/:id', ACC, ({ params, body }) => {
@@ -185,7 +200,7 @@ function build(db) {
     const a = productArgs(body, p.id);
     if (a[7] !== p.is_service && (p.stock !== 0 || db.prepare('SELECT 1 FROM stock_moves WHERE product_id=? LIMIT 1').get(p.id)))
       throw bad('No se puede cambiar entre producto y servicio si ya tiene movimientos de inventario');
-    db.prepare('UPDATE products SET code=?,name=?,category_id=?,unit=?,price=?,min_stock=?,tax_id=?,is_service=?,active=? WHERE id=?')
+    db.prepare('UPDATE products SET code=?,name=?,category_id=?,unit=?,price=?,min_stock=?,tax_id=?,is_service=?,brand=?,barcode=?,nso=?,price2=?,active=? WHERE id=?')
       .run(...a, body.active === false || body.active === 0 ? 0 : 1, p.id);
     return db.prepare('SELECT * FROM products WHERE id=?').get(p.id);
   });
@@ -208,14 +223,16 @@ function build(db) {
               db.prepare('INSERT OR IGNORE INTO categories(name) VALUES(?)').run(str(r.category));
               cat = db.prepare('SELECT id FROM categories WHERE name=?').get(str(r.category)).id;
             }
+            const rate = str(r.iva) === null ? 19 : num(r.iva);
+            const tx = db.prepare('SELECT id FROM taxes WHERE active=1 AND rate=? ORDER BY id').get(rate) || db.prepare('SELECT id FROM taxes WHERE active=1 ORDER BY id').get();
             const ex = db.prepare('SELECT id FROM products WHERE code=?').get(code);
-            if (ex) { db.prepare('UPDATE products SET name=?, category_id=COALESCE(?,category_id), unit=COALESCE(?,unit), price=? WHERE id=?').run(name, cat, str(r.unit), num(r.price), ex.id); updated++; }
+            if (ex) { db.prepare('UPDATE products SET name=?, category_id=COALESCE(?,category_id), unit=COALESCE(?,unit), price=?, price2=?, brand=COALESCE(?,brand), barcode=COALESCE(?,barcode), nso=COALESCE(?,nso) WHERE id=?').run(name, cat, str(r.unit), num(r.price), num(r.price2), str(r.brand), str(r.barcode), str(r.nso), ex.id); updated++; }
             else {
-              const ins = db.prepare('INSERT INTO products(code,name,category_id,unit,price,min_stock,is_service) VALUES(?,?,?,?,?,?,?)')
-                .run(code, name, cat, str(r.unit) || 'und', num(r.price), num(r.min_stock), r.is_service ? 1 : 0);
+              const ins = db.prepare('INSERT INTO products(code,name,category_id,unit,price,price2,min_stock,is_service,brand,barcode,nso,tax_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+                .run(code, name, cat, str(r.unit) || 'und', num(r.price), num(r.price2), num(r.min_stock), r.is_service ? 1 : 0, str(r.brand), str(r.barcode), str(r.nso), tx ? tx.id : null);
               created++;
               if (num(r.stock) > 0 && !r.is_service && num(r.cost) > 0)
-                C.adjustStock(db, user, { product_id: Number(ins.lastInsertRowid), qty: num(r.stock), unit_cost: num(r.cost), kind: 'inicial', date: C.today(), notes: 'Importación' });
+                C.adjustStock(db, user, { product_id: Number(ins.lastInsertRowid), qty: num(r.stock), unit_cost: num(r.cost), kind: 'inicial', date: C.today(), notes: 'Importación', lot: r.lot, expiry: r.expiry || null });
             }
           } else if (what === 'terceros') {
             if (!str(r.name)) throw new Error('falta nombre');
@@ -299,6 +316,7 @@ function build(db) {
   on('GET', '/api/reports/sales', ACC, ({ query }) => R.salesReport(db, query));
   on('GET', '/api/reports/aging', ACC, ({ query }) => R.agingReport(db, query));
   on('GET', '/api/reports/inventory', ACC, () => R.inventoryReport(db));
+  on('GET', '/api/reports/lots', ACC, ({ query }) => R.lotsReport(db, query));
   on('GET', '/api/reports/kardex', ACC, ({ query }) => R.kardex(db, query));
   // el vendedor ve un resumen propio simple
   on('GET', '/api/reports/my-sales', ALL, ({ user }) => db.prepare(`SELECT date, COUNT(*) n, ROUND(SUM(total),2) total FROM documents WHERE type='venta' AND status='activo' AND user_id=? GROUP BY date ORDER BY date DESC LIMIT 15`).all(user.id));

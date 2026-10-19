@@ -123,7 +123,7 @@ VIEWS.informes = async (el, sub) => {
   const box = $('#ct');
   if (cur === 'ventas' || cur === 'compras') {
     const type = cur === 'ventas' ? 'venta' : 'compra';
-    const groups = type === 'venta' ? [['producto', 'Por producto'], ['categoria', 'Por categoría'], ['cliente', 'Por cliente'], ['dia', 'Por día'], ['mes', 'Por mes'], ['vendedor', 'Por vendedor']] : [['producto', 'Por producto'], ['categoria', 'Por categoría'], ['cliente', 'Por proveedor'], ['dia', 'Por día'], ['mes', 'Por mes']];
+    const groups = type === 'venta' ? [['producto', 'Por producto'], ['categoria', 'Por categoría'], ['cliente', 'Por cliente'], ['dia', 'Por día'], ['mes', 'Por mes'], ['marca', 'Por marca'], ['vendedor', 'Por vendedor']] : [['producto', 'Por producto'], ['categoria', 'Por categoría'], ['cliente', 'Por proveedor'], ['dia', 'Por día'], ['mes', 'Por mes'], ['marca', 'Por marca']];
     box.innerHTML = rangeBar(`<div><label>Agrupar</label><select id="gr">${groups.map((g) => opt(g[0], g[1])).join('')}</select></div>`);
     $('#go').onclick = async () => {
       const r = await api('GET', '/reports/sales' + qs({ from: $('#r1').value, to: $('#r2').value, group: $('#gr').value, type }));
@@ -150,7 +150,7 @@ VIEWS.informes = async (el, sub) => {
 
 /* ---------- configuración ---------- */
 VIEWS.config = async (el, sub) => {
-  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos y categorías'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
+  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos, retenciones y categorías'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
   const cur = sub || 'empresa';
   setTop('');
   el.innerHTML = tabsBar('config', tabs, cur) + '<div id="ct"></div>';
@@ -158,15 +158,17 @@ VIEWS.config = async (el, sub) => {
   const saveSettings = (form) => async (e) => {
     e.preventDefault();
     const b = formData(e.target);
-    for (const k of ['allow_negative_stock', 'use_inventory']) if (k in b) b[k] = b[k] ? '1' : '0';
+    for (const k of ['allow_negative_stock', 'use_inventory', 'track_lots']) if (k in b) b[k] = b[k] ? '1' : '0';
     try { await api('PUT', '/settings', b); toast('Guardado'); render(); } catch (er) { fail(er); }
   };
   if (cur === 'empresa') {
     box.innerHTML = `<form class="card" id="f"><div class="grid g2"><div><label>Nombre</label><input name="company_name" value="${esc(c.company_name)}" required></div><div><label>NIT</label><input name="company_nit" value="${esc(c.company_nit)}"></div>
       <div><label>Teléfono</label><input name="company_phone" value="${esc(c.company_phone)}"></div><div><label>Dirección</label><input name="company_address" value="${esc(c.company_address)}"></div>
-      <div><label>Símbolo de moneda</label><input name="currency" value="${esc(c.currency)}"></div><div></div>
+      <div><label>Símbolo de moneda</label><input name="currency" value="${esc(c.currency)}"></div><div><label>Decimales a mostrar (0 para pesos)</label><input name="decimals" type="number" min="0" max="2" value="${esc(c.decimals ?? 0)}"></div>
+      <div><label>Resolución DIAN / régimen (se imprime bajo el nombre)</label><input name="dian_text" value="${esc(c.dian_text)}" placeholder="Ej: Resolución 18764… · No responsable de IVA"></div><div><label>Pie de la factura</label><input name="print_footer" value="${esc(c.print_footer)}"></div>
       <div><label>Prefijo ventas</label><input name="pfx_venta" value="${esc(c.pfx_venta)}"></div><div><label>Prefijo compras</label><input name="pfx_compra" value="${esc(c.pfx_compra)}"></div><div><label>Prefijo gastos</label><input name="pfx_gasto" value="${esc(c.pfx_gasto)}"></div></div>
       <p><label><input type="checkbox" name="use_inventory" style="width:auto" ${c.use_inventory === '1' ? 'checked' : ''}> Manejo inventario de productos</label>
+       <label><input type="checkbox" name="track_lots" style="width:auto" ${c.track_lots === '1' ? 'checked' : ''}> Controlar lotes y fechas de vencimiento (primero en vencer, primero en salir)</label>
       <label><input type="checkbox" name="allow_negative_stock" style="width:auto" ${c.allow_negative_stock === '1' ? 'checked' : ''}> Permitir vender sin existencias</label></p><button class="btn">Guardar</button></form>`;
     $('#f').onsubmit = saveSettings();
   } else if (cur === 'cuentas') {
@@ -176,10 +178,18 @@ VIEWS.config = async (el, sub) => {
     box.innerHTML = `<form class="card" id="f"><p class="help">Estas cuentas se usan para generar los asientos automáticamente. Puede cambiarlas para adaptar el sistema a su plan contable.</p><div class="grid g2">${roles.map((r) => `<div><label>${r[1]}</label><select name="${r[0]}">${accs.filter((a) => a.active).map((a) => opt(a.code, a.code + ' · ' + a.name, c[r[0]])).join('')}</select></div>`).join('')}</div><p><button class="btn">Guardar</button></p></form>`;
     $('#f').onsubmit = saveSettings();
   } else if (cur === 'impuestos') {
+    const accsAll = (await api('GET', '/accounts')).filter((a) => a.active);
     box.innerHTML = `<div class="grid g2"><div class="card"><h2>Impuestos</h2>${table([{ h: 'Nombre', k: 'name' }, { h: 'Tarifa %', k: 'rate', n: 1 }, { h: '', raw: 1, k: (t) => `<button class="btn sm sec" data-dt="${t.id}">Quitar</button>` }], c.taxes)}
       <form id="ft" class="row" style="margin-top:10px"><div><label>Nombre</label><input name="name" required></div><div><label>Tarifa %</label><input name="rate" type="number" step="0.01" min="0" max="100" required></div><div class="auto"><button class="btn">Agregar</button></div></form></div>
       <div class="card"><h2>Categorías de productos</h2>${table([{ h: 'Nombre', k: 'name' }, { h: '', raw: 1, k: (t) => `<button class="btn sm sec" data-dc="${t.id}">Quitar</button>` }], c.categories)}
-      <form id="fc" class="row" style="margin-top:10px"><div><label>Nueva categoría</label><input name="name" required></div><div class="auto"><button class="btn">Agregar</button></div></form></div></div>`;
+      <form id="fc" class="row" style="margin-top:10px"><div><label>Nueva categoría</label><input name="name" required></div><div class="auto"><button class="btn">Agregar</button></div></form></div></div>
+      <div class="card"><h2>Retenciones</h2><p class="help">Tarifas de ejemplo: confírmelas con su contador (dependen del régimen y del municipio). Se aplican marcándolas al registrar cada compra o venta.</p>
+      ${table([{ h: 'Nombre', k: 'name' }, { h: 'Tarifa %', k: 'rate', n: 1 }, { h: 'Sobre', k: (w) => (w.base === 'iva' ? 'IVA' : 'Subtotal') }, { h: 'Aplica a', k: 'applies' }, { h: 'Cuenta', k: 'account_code' }, { h: '', raw: 1, k: (w) => `<button class="btn sm sec" data-dw="${w.id}">Quitar</button>` }], c.withholdings || [])}
+      <form id="fw" class="row" style="margin-top:10px"><div><label>Nombre</label><input name="name" required></div><div><label>Tarifa %</label><input name="rate" type="number" step="0.001" min="0" max="100" required></div>
+      <div><label>Sobre</label><select name="base"><option value="subtotal">Subtotal</option><option value="iva">IVA</option></select></div><div><label>Aplica a</label><select name="applies"><option value="compra">Compras (nosotros retenemos)</option><option value="venta">Ventas (nos retienen)</option></select></div>
+      <div><label>Cuenta contable</label><select name="account_code">${accsAll.map((a) => opt(a.code, a.code + ' · ' + a.name)).join('')}</select></div><div class="auto"><button class="btn">Agregar</button></div></form></div>`;
+    $('#fw').onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/withholdings', formData(e.target)); render(); } catch (er) { fail(er); } };
+    $$('[data-dw]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/withholdings/' + b.dataset.dw); render(); } catch (er) { fail(er); } }));
     $('#ft').onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/taxes', formData(e.target)); render(); } catch (er) { fail(er); } };
     $('#fc').onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/categories', formData(e.target)); render(); } catch (er) { fail(er); } };
     $$('[data-dt]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/taxes/' + b.dataset.dt); render(); } catch (er) { fail(er); } }));

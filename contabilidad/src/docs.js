@@ -6,7 +6,7 @@ const { bad, round2, round4, num, needDate, today } = C;
 
 const TYPES = ['venta', 'compra', 'gasto'];
 
-function computeLines(db, type, rawLines) {
+function computeLines(db, type, rawLines, third) {
   if (!Array.isArray(rawLines) || !rawLines.length) throw bad('Agregue al menos una línea');
   const useInv = C.getSetting(db, 'use_inventory', '1') === '1';
   const out = [];
@@ -20,7 +20,11 @@ function computeLines(db, type, rawLines) {
     const qty = num(l.qty, 1);
     if (!(qty > 0)) throw bad('La cantidad debe ser mayor que cero');
     let price = l.price === undefined || l.price === '' || l.price === null ? null : num(l.price);
-    if (price === null) price = product ? (type === 'venta' ? product.price : product.cost) : 0;
+    if (price === null) {
+      if (!product) price = 0;
+      else if (type === 'venta') price = third && third.price_list === 'mayorista' && product.price2 > 0 ? product.price2 : product.price;
+      else price = product.cost;
+    }
     if (price < 0) throw bad('El precio no puede ser negativo');
     const disc_pct = num(l.disc_pct);
     if (disc_pct < 0 || disc_pct > 100) throw bad('El descuento debe estar entre 0 y 100');
@@ -42,7 +46,7 @@ function computeLines(db, type, rawLines) {
     }
     out.push({
       product, tracked, qty, price, disc_pct, tax_id: taxId || null, tax_rate, base, tax_amount, total: round2(base + tax_amount),
-      disc_amount: round2(gross - base), description: String(l.description || (product && product.name) || '').trim(), account_code,
+      lot: String(l.lot || '').trim() || null, expiry: l.expiry || null, disc_amount: round2(gross - base), description: String(l.description || (product && product.name) || '').trim(), account_code,
     });
   }
   return out;
@@ -56,27 +60,38 @@ function createDocument(db, user, b) {
   if (due < date) throw bad('El vencimiento no puede ser anterior a la fecha');
   return tx(db, () => {
     C.checkLock(db, date);
-    const lines = computeLines(db, type, b.lines);
-    const subtotal = round2(lines.reduce((s, l) => s + l.base, 0));
-    const tax = round2(lines.reduce((s, l) => s + l.tax_amount, 0));
-    const discount = round2(lines.reduce((s, l) => s + l.disc_amount, 0));
-    const total = round2(subtotal + tax);
-    let payNow = round2(num(b.pay_now, 0));
-    if (payNow < 0 || payNow > total + 0.005) throw bad('El pago inmediato no puede ser mayor que el total');
-    if (payNow > total) payNow = total;
     let third = null;
     if (b.third_id) {
       third = db.prepare('SELECT * FROM thirds WHERE id=?').get(num(b.third_id));
       if (!third) throw bad('Tercero no encontrado');
     }
+    const lines = computeLines(db, type, b.lines, third);
+    const subtotal = round2(lines.reduce((s, l) => s + l.base, 0));
+    const tax = round2(lines.reduce((s, l) => s + l.tax_amount, 0));
+    const discount = round2(lines.reduce((s, l) => s + l.disc_amount, 0));
+    // retenciones (Colombia): reducen lo que se cobra (ventas) o se paga (compras/gastos)
+    const whs = [];
+    for (const wid of Array.isArray(b.withholdings) ? b.withholdings : []) {
+      const w = db.prepare('SELECT * FROM withholdings WHERE id=? AND active=1').get(num(wid));
+      if (!w) throw bad('Retención no encontrada');
+      if (w.applies !== (type === 'venta' ? 'venta' : 'compra')) throw bad(`La retención "${w.name}" no aplica a este documento`);
+      const baseAmount = w.base === 'iva' ? tax : subtotal;
+      whs.push({ ...w, base_amount: baseAmount, amount: round2(baseAmount * w.rate / 100) });
+    }
+    const withholding = round2(whs.reduce((s, w) => s + w.amount, 0));
+    const total = round2(subtotal + tax - withholding);
+    if (total < 0) throw bad('Las retenciones superan el valor del documento');
+    let payNow = round2(num(b.pay_now, 0));
+    if (payNow < 0 || payNow > total + 0.005) throw bad('El pago inmediato no puede ser mayor que el total');
+    if (payNow > total) payNow = total;
     if (payNow < total && !third) throw bad('Para dejar saldo pendiente (crédito) seleccione un cliente/proveedor');
     if (type === 'venta' && !lines.length) throw bad('Venta sin líneas');
 
     let number = String(b.number || '').trim();
     if (!number || type === 'venta') number = C.nextNumber(db, type);
     else if (db.prepare('SELECT 1 FROM documents WHERE type=? AND number=?').get(type, number)) throw bad(`Ya existe la compra/gasto ${number}`);
-    const r = db.prepare(`INSERT INTO documents(type,number,date,due_date,third_id,subtotal,discount,tax,total,ref,notes,user_id,created_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(type, number, date, due, third ? third.id : null, subtotal, discount, tax, total,
+    const r = db.prepare(`INSERT INTO documents(type,number,date,due_date,third_id,subtotal,discount,tax,withholding,total,ref,notes,user_id,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(type, number, date, due, third ? third.id : null, subtotal, discount, tax, withholding, total,
       b.ref || null, b.notes || null, user.id, new Date().toISOString());
     const docId = Number(r.lastInsertRowid);
 
@@ -90,24 +105,26 @@ function createDocument(db, user, b) {
       }
     }
 
-    const insLine = db.prepare(`INSERT INTO doc_lines(doc_id,product_id,description,qty,price,disc_pct,tax_id,tax_rate,base,tax_amount,total,unit_cost,account_code)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    for (const w of whs) db.prepare('INSERT INTO doc_withholdings(doc_id,name,rate,base_amount,amount,account_code) VALUES(?,?,?,?,?,?)').run(docId, w.name, w.rate, w.base_amount, w.amount, w.account_code);
+    const insLine = db.prepare(`INSERT INTO doc_lines(doc_id,product_id,description,qty,price,disc_pct,tax_id,tax_rate,base,tax_amount,total,unit_cost,account_code,lot,expiry)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     const credits = new Map(), debits = new Map(); // cuenta -> valor
     const add = (m, k, v) => m.set(k, round2((m.get(k) || 0) + v));
     let cogs = 0;
     for (const l of lines) {
       let unitCost = 0;
       if (type === 'venta') {
-        if (l.tracked) { const v = C.stockOut(db, l.product, date, 'venta', l.qty, docId); unitCost = round4(v / l.qty); cogs += v; }
+        if (l.tracked) { const v = C.stockOut(db, l.product, date, 'venta', l.qty, docId); unitCost = round4(v / l.qty); cogs += v; C.lotsConsume(db, l.product.id, l.qty, docId); }
         add(credits, l.account_code || C.acct(db, 'acc_ingresos'), l.base);
       } else if (type === 'compra') {
         if (l.tracked) {
           unitCost = round4(l.base / l.qty);
           C.stockIn(db, l.product, date, 'compra', l.qty, unitCost, docId, null, l.base);
+          C.lotAdd(db, l.product.id, l.lot, l.expiry, l.qty, unitCost, docId, date);
           add(debits, C.acct(db, 'acc_inventario'), l.base);
         } else add(debits, l.account_code || C.acct(db, 'acc_gastos_compras'), l.base);
       } else add(debits, l.account_code || C.acct(db, 'acc_gastos_diversos'), l.base);
-      insLine.run(docId, l.product ? l.product.id : null, l.description, l.qty, l.price, l.disc_pct, l.tax_id, l.tax_rate, l.base, l.tax_amount, l.total, unitCost, l.account_code);
+      insLine.run(docId, l.product ? l.product.id : null, l.description, l.qty, l.price, l.disc_pct, l.tax_id, l.tax_rate, l.base, l.tax_amount, l.total, unitCost, l.account_code, l.lot, l.expiry);
     }
     cogs = round2(cogs);
     db.prepare('UPDATE documents SET cogs=? WHERE id=?').run(cogs, docId);
@@ -116,6 +133,7 @@ function createDocument(db, user, b) {
     const desc = `${type === 'venta' ? 'Venta' : type === 'compra' ? 'Compra' : 'Gasto'} ${number}`;
     if (type === 'venta') {
       const lns = [{ account_code: C.acct(db, 'acc_cxc'), third_id: tid, debit: total }];
+      for (const w of whs) lns.push({ account_code: w.account_code, third_id: tid, debit: w.amount, memo: w.name });
       for (const [a, v] of credits) lns.push({ account_code: a, credit: v });
       if (tax > 0) lns.push({ account_code: C.acct(db, 'acc_iva_ventas'), credit: tax });
       C.postEntry(db, { date, description: desc, source: 'venta', source_id: docId, user_id: user.id, lines: lns });
@@ -126,6 +144,7 @@ function createDocument(db, user, b) {
       for (const [a, v] of debits) lns.push({ account_code: a, debit: v });
       if (tax > 0) lns.push({ account_code: C.acct(db, 'acc_iva_compras'), debit: tax });
       lns.push({ account_code: C.acct(db, 'acc_cxp'), third_id: tid, credit: total });
+      for (const w of whs) lns.push({ account_code: w.account_code, third_id: tid, credit: w.amount, memo: w.name });
       C.postEntry(db, { date, description: desc, source: type, source_id: docId, user_id: user.id, lines: lns });
     }
     if (payNow > 0) registerPayment(db, user, { doc_id: docId, amount: payNow, date, account_code: b.pay_account || C.acct(db, 'acc_caja'), notes: 'Pago al contado' });
@@ -138,6 +157,7 @@ function getDocument(db, id) {
     FROM documents d LEFT JOIN thirds t ON t.id=d.third_id WHERE d.id=?`).get(id);
   if (!d) throw new C.HttpError(404, 'Documento no encontrado');
   d.lines = db.prepare('SELECT * FROM doc_lines WHERE doc_id=? ORDER BY id').all(id);
+  d.withholdings = db.prepare('SELECT * FROM doc_withholdings WHERE doc_id=?').all(id);
   d.payments = db.prepare("SELECT p.*, a.name account_name FROM payments p LEFT JOIN accounts a ON a.code=p.account_code WHERE doc_id=? ORDER BY id").all(id);
   d.balance = round2(d.total - d.paid);
   return d;
@@ -192,6 +212,8 @@ function voidDocument(db, user, id, date) {
       throw bad('Primero anule los cobros/pagos aplicados a este documento');
     date = needDate(date || today());
     C.checkLock(db, date);
+    if (d.type === 'compra') C.lotsVoidPurchase(db, d.id);
+    if (d.type === 'venta') C.lotsRestore(db, d.id);
     const moves = db.prepare('SELECT * FROM stock_moves WHERE doc_id=? ORDER BY id DESC').all(d.id);
     for (const m of moves) {
       const p = db.prepare('SELECT * FROM products WHERE id=?').get(m.product_id);
