@@ -177,3 +177,60 @@ test('cabello: lotes FEFO, vencimientos y precio mayorista', () => {
   assert.deepEqual(db.prepare('SELECT qty_left FROM lots ORDER BY expiry').all().map((l) => l.qty_left), [5, 5]);
   bal(db);
 });
+
+test('sugerencia de descuento por vencimiento respeta escalones y costo', () => {
+  const t = R.parseTiers('30:30,60:20,90:10');
+  assert.deepEqual(R.suggestDiscount(25, 40000, 20000, t), { pct: 30, price: 28000, limited: false });
+  assert.equal(R.suggestDiscount(45, 40000, 20000, t).pct, 20);
+  assert.equal(R.suggestDiscount(120, 40000, 20000, t), null);   // aún falta mucho
+  assert.equal(R.suggestDiscount(-1, 40000, 20000, t), null);    // vencido: no se vende
+  const lim = R.suggestDiscount(10, 40000, 36000, t);            // margen de solo 10 %: no baja del costo
+  assert.ok(lim.limited && lim.price >= 36000);
+  assert.ok(R.suggestDiscount(10, 40000, 40000, t).at_cost);
+});
+
+test('pasarelas: enlace Wompi, webhook firmado, idempotencia y liquidación', async () => {
+  const crypto = require('crypto');
+  const G = require('../src/gateways');
+  const { db, user, cli, mkProd } = fresh();
+  const s = mkProd('S9', 50000, { service: true });
+  const v = D.createDocument(db, user, { type: 'venta', date: '2025-07-01', third_id: cli, lines: [{ product_id: s, qty: 1 }] }); // 59.500
+  const gid = G.saveGateway(db, null, { provider: 'wompi', name: 'Wompi', mode: 'sandbox', private_key: 'prv_test_x', events_secret: 'sec123', account_code: '111015' });
+  assert.ok(!JSON.stringify(G.listGateways(db)).includes('prv_test_x'), 'no devuelve secretos');
+  assert.ok(!JSON.stringify(db.prepare('SELECT * FROM gateways').all()).includes('prv_test_x'), 'cifrado en reposo');
+  let called;
+  const fakeFetch = async (url, opt) => { called = { url, opt }; return { ok: true, json: async () => ({ data: { id: 'link_abc' } }) }; };
+  const link = await G.createPayLink(db, user, { gateway_id: gid, doc_id: v.id }, fakeFetch);
+  assert.equal(link.url, 'https://checkout.wompi.co/l/link_abc');
+  assert.equal(JSON.parse(called.opt.body).amount_in_cents, 5950000);
+  assert.match(called.url, /sandbox\.wompi\.co/); assert.equal(called.opt.headers.Authorization, 'Bearer prv_test_x');
+  const event = (status, txid, ts = 1700000000) => {
+    const data = { transaction: { id: txid, status, amount_in_cents: 5950000, payment_link_id: 'link_abc', payment_method_type: 'NEQUI' } };
+    const props = ['transaction.id', 'transaction.status', 'transaction.amount_in_cents'];
+    const checksum = crypto.createHash('sha256').update(txid + status + 5950000 + ts + 'sec123').digest('hex');
+    return { event: 'transaction.updated', data, timestamp: ts, signature: { properties: props, checksum } };
+  };
+  assert.throws(() => G.handleWebhook(db, gid, {}, '', { ...event('APPROVED', 't1'), signature: { properties: ['transaction.id'], checksum: 'mala' } }), /Firma inválida/);
+  assert.equal(R.agingReport(db, { type: 'venta' }).totals.total, 59500);   // la firma mala no cobró nada
+  assert.equal(G.handleWebhook(db, gid, {}, '', event('DECLINED', 't0')).result, 'Sin pago (DECLINED)');
+  G.handleWebhook(db, gid, {}, '', event('APPROVED', 't1'));
+  assert.equal(D.getDocument(db, v.id).balance, 0);
+  assert.ok(G.handleWebhook(db, gid, {}, '', event('APPROVED', 't1')).duplicate); // reintento de la pasarela
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM payments').get().n, 1);
+  assert.equal(R.ledger(db, { account: '111015' }).closing, 59500);
+  // banco recibe 57.000 y la pasarela cobra 2.500 de comisión
+  G.settle(db, user, { gateway_id: gid, received: 57000, fee: 2500, bank_account: '111005', date: '2025-07-05' });
+  assert.equal(R.ledger(db, { account: '111015' }).closing, 0);
+  assert.equal(R.ledger(db, { account: '111005' }).closing, 57000);
+  assert.equal(R.ledger(db, { account: '530505' }).closing, 2500);
+  bal(db);
+  // pasarela genérica con HMAC
+  const g2 = G.saveGateway(db, null, { provider: 'generico', name: 'Otra', events_secret: 'k', account_code: '111015', link_template: 'https://pay.example.com/?ref={reference}&monto={amount}' });
+  const v2 = D.createDocument(db, user, { type: 'venta', date: '2025-07-02', third_id: cli, lines: [{ product_id: s, qty: 1 }] });
+  const l2 = await G.createPayLink(db, user, { gateway_id: g2, doc_id: v2.id });
+  const raw = JSON.stringify({ reference: l2.reference, status: 'approved', amount: 59500, transaction_id: 'x1' });
+  assert.throws(() => G.handleWebhook(db, g2, { 'x-signature': 'abc' }, raw, JSON.parse(raw)), /Firma inválida/);
+  G.handleWebhook(db, g2, { 'x-signature': crypto.createHmac('sha256', 'k').update(raw).digest('hex') }, raw, JSON.parse(raw));
+  assert.equal(D.getDocument(db, v2.id).balance, 0);
+  bal(db);
+});

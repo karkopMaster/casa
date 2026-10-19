@@ -5,6 +5,7 @@ const { tx } = require('./db');
 const C = require('./core');
 const D = require('./docs');
 const R = require('./reports');
+const G = require('./gateways');
 const { HttpError, bad, num, round2 } = C;
 
 const ALL = ['admin', 'contador', 'vendedor'], ACC = ['admin', 'contador'], ADMIN = ['admin'];
@@ -54,6 +55,7 @@ function build(db) {
   function publicSettings() {
     const s = C.getSettings(db);
     s.taxes = db.prepare('SELECT * FROM taxes WHERE active=1 ORDER BY id').all();
+    s.gateways = db.prepare('SELECT id, name, provider FROM gateways WHERE active=1 ORDER BY id').all();
     s.withholdings = db.prepare('SELECT * FROM withholdings WHERE active=1 ORDER BY applies, id').all();
     s.categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
     s.pay_accounts = db.prepare("SELECT code,name FROM accounts WHERE type='activo' AND active=1 AND code LIKE '11%' ORDER BY code").all();
@@ -63,13 +65,14 @@ function build(db) {
   // ---------- configuración ----------
   on('GET', '/api/settings', ALL, () => publicSettings());
   const SETTING_KEYS = ['company_name', 'company_nit', 'company_address', 'company_phone', 'currency', 'allow_negative_stock', 'lock_date',
-    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
+    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'expiry_tiers', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
   on('PUT', '/api/settings', ADMIN, ({ body }) => tx(db, () => {
     for (const k of SETTING_KEYS) {
       if (body[k] === undefined) continue;
       let v = String(body[k]);
       if (k === 'lock_date' && v) C.needDate(v, 'fecha de cierre');
       if (k.startsWith('acc_') && !db.prepare('SELECT 1 FROM accounts WHERE code=?').get(v)) throw bad(`La cuenta ${v} no existe`);
+      if (k === 'expiry_tiers' && !R.parseTiers(v).length) throw bad('Formato de descuentos: días:porcentaje separados por coma, ej. 30:30,60:20,90:10');
       if (k === 'decimals') v = String(Math.min(2, Math.max(0, parseInt(v, 10) || 0)));
       if (k === 'allow_negative_stock' || k === 'use_inventory' || k === 'track_lots') v = v === '1' || v === 'true' ? '1' : '0';
       C.setSetting(db, k, v);
@@ -177,6 +180,18 @@ function build(db) {
       WHERE (p.name LIKE ? OR p.code LIKE ? OR p.barcode LIKE ? OR p.brand LIKE ?)`;
     if (query.all !== '1') sql += ' AND p.active=1';
     const rows = db.prepare(sql + ' ORDER BY p.name LIMIT 1000').all(q, q, q, q);
+    if (C.lotsOn(db)) { // sugerencia de descuento por el lote que saldrá primero (FEFO)
+      const tiers = R.parseTiers(C.getSetting(db, 'expiry_tiers', '')), now = C.today(), first = new Map();
+      for (const l of db.prepare('SELECT product_id, lot, expiry, qty_left FROM lots WHERE qty_left>0 AND expiry IS NOT NULL ORDER BY expiry, id').all()) if (!first.has(l.product_id)) first.set(l.product_id, l);
+      for (const r of rows) {
+        const l = first.get(r.id);
+        if (!l) continue;
+        const days = Math.floor((Date.parse(l.expiry) - Date.parse(now)) / 86400000);
+        r.next_lot = { lot: l.lot, expiry: l.expiry, qty_left: l.qty_left, days_left: days, expired: days < 0 };
+        r.sug = R.suggestDiscount(days, r.price, r.cost, tiers);
+        r.sug2 = r.price2 > 0 ? R.suggestDiscount(days, r.price2, r.cost, tiers) : null;
+      }
+    }
     if (user.role === 'vendedor') for (const r of rows) { delete r.cost; } // el vendedor no ve costos
     return rows;
   });
@@ -306,6 +321,16 @@ function build(db) {
   on('POST', '/api/entries', ACC, ({ body, user }) => D.createManualEntry(db, user, body));
   on('POST', '/api/entries/:id/void', ACC, ({ params, body, user }) => D.voidManualEntry(db, user, params.id, body.date));
 
+  // ---------- pasarelas de pago ----------
+  on('GET', '/api/gateways', ADMIN, () => ({ gateways: G.listGateways(db), providers: Object.entries(G.PROVIDERS).map(([k, v]) => ({ id: k, label: v.label })), events: G.recentEvents(db) }));
+  on('POST', '/api/gateways', ADMIN, ({ body }) => ({ id: G.saveGateway(db, null, body) }));
+  on('PUT', '/api/gateways/:id', ADMIN, ({ params, body }) => ({ id: G.saveGateway(db, num(params.id), body) }));
+  on('DELETE', '/api/gateways/:id', ADMIN, ({ params }) => { db.prepare('UPDATE gateways SET active=0 WHERE id=?').run(params.id); return { ok: true }; });
+  on('POST', '/api/gateways/settle', ACC, ({ body, user }) => G.settle(db, user, body));
+  on('POST', '/api/documents/:id/pay-link', ALL, ({ params, body, user }) => G.createPayLink(db, user, { gateway_id: body.gateway_id, doc_id: params.id }));
+  // público: lo llama la pasarela; la autenticidad se comprueba con la firma del evento
+  on('POST', '/api/gateways/:id/webhook', null, ({ params, body, raw, headers }) => G.handleWebhook(db, params.id, headers || {}, raw || '', body));
+
   // ---------- informes ----------
   on('GET', '/api/reports/dashboard', ACC, () => R.dashboard(db));
   on('GET', '/api/reports/trial', ACC, ({ query }) => R.trialBalance(db, query));
@@ -328,7 +353,7 @@ function build(db) {
     return db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(s.user_id) || null;
   }
 
-  function dispatch(method, path, query, body, token, ip) {
+  function dispatch(method, path, query, body, token, ip, extra = {}) {
     for (const r of routes) {
       if (r.method !== method) continue;
       const m = r.re.exec(path);
@@ -341,7 +366,7 @@ function build(db) {
         if (!user) throw new HttpError(401, 'Sesión expirada. Ingrese de nuevo.');
         if (!r.roles.includes(user.role)) throw new HttpError(403, 'No tiene permiso para esta acción');
       }
-      return r.fn({ params, query, body: body || {}, user, token, ip });
+      return r.fn({ params, query, body: body || {}, user, token, ip, raw: extra.raw, headers: extra.headers });
     }
     throw new HttpError(404, 'Ruta no encontrada');
   }

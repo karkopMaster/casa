@@ -25,6 +25,12 @@ function createServer(db) {
       const chunks = []; let size = 0;
       req.on('data', (c) => { size += c.length; if (size > 5e6) req.destroy(); else chunks.push(c); });
       req.on('end', () => {
+        const fail = (e) => {
+          if (e instanceof HttpError) return send(res, e.status, { error: e.message });
+          if (/UNIQUE constraint/.test(String(e.message))) return send(res, 400, { error: 'Ya existe un registro con ese valor único (código, número o usuario)' });
+          console.error(e);
+          send(res, 500, { error: 'Error interno del servidor' });
+        };
         try {
           let body = {};
           if (chunks.length) { try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new HttpError(400, 'JSON inválido'); } }
@@ -38,13 +44,9 @@ function createServer(db) {
             const buf = fs.readFileSync(tmp); fs.unlinkSync(tmp);
             return send(res, 200, buf, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="contabilidad-${new Date().toISOString().slice(0, 10)}.db"` });
           }
-          send(res, 200, api.dispatch(req.method, url.pathname, query, body, token, req.socket.remoteAddress));
-        } catch (e) {
-          if (e instanceof HttpError) return send(res, e.status, { error: e.message });
-          if (/UNIQUE constraint/.test(String(e.message))) return send(res, 400, { error: 'Ya existe un registro con ese valor único (código, número o usuario)' });
-          console.error(e);
-          send(res, 500, { error: 'Error interno del servidor' });
-        }
+          const out = api.dispatch(req.method, url.pathname, query, body, token, req.socket.remoteAddress, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers });
+          return Promise.resolve(out).then((r) => send(res, 200, r)).catch(fail);
+        } catch (e) { fail(e); }
       });
       return;
     }

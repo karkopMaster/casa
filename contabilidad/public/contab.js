@@ -150,7 +150,7 @@ VIEWS.informes = async (el, sub) => {
 
 /* ---------- configuración ---------- */
 VIEWS.config = async (el, sub) => {
-  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos, retenciones y categorías'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
+  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos, retenciones y categorías'], ['pasarelas', 'Pasarelas de pago'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
   const cur = sub || 'empresa';
   setTop('');
   el.innerHTML = tabsBar('config', tabs, cur) + '<div id="ct"></div>';
@@ -166,6 +166,7 @@ VIEWS.config = async (el, sub) => {
       <div><label>Teléfono</label><input name="company_phone" value="${esc(c.company_phone)}"></div><div><label>Dirección</label><input name="company_address" value="${esc(c.company_address)}"></div>
       <div><label>Símbolo de moneda</label><input name="currency" value="${esc(c.currency)}"></div><div><label>Decimales a mostrar (0 para pesos)</label><input name="decimals" type="number" min="0" max="2" value="${esc(c.decimals ?? 0)}"></div>
       <div><label>Resolución DIAN / régimen (se imprime bajo el nombre)</label><input name="dian_text" value="${esc(c.dian_text)}" placeholder="Ej: Resolución 18764… · No responsable de IVA"></div><div><label>Pie de la factura</label><input name="print_footer" value="${esc(c.print_footer)}"></div>
+      <div style="grid-column:1/-1"><label>Descuentos por vencimiento (días:porcentaje, separados por coma)</label><input name="expiry_tiers" value="${esc(c.expiry_tiers || '30:30,60:20,90:10')}"><div class="help">Ej. 30:30,60:20,90:10 = si vence en ≤30 días sugerir 30 %, ≤60 días 20 %, ≤90 días 10 %.</div></div>
       <div><label>Prefijo ventas</label><input name="pfx_venta" value="${esc(c.pfx_venta)}"></div><div><label>Prefijo compras</label><input name="pfx_compra" value="${esc(c.pfx_compra)}"></div><div><label>Prefijo gastos</label><input name="pfx_gasto" value="${esc(c.pfx_gasto)}"></div></div>
       <p><label><input type="checkbox" name="use_inventory" style="width:auto" ${c.use_inventory === '1' ? 'checked' : ''}> Manejo inventario de productos</label>
        <label><input type="checkbox" name="track_lots" style="width:auto" ${c.track_lots === '1' ? 'checked' : ''}> Controlar lotes y fechas de vencimiento (primero en vencer, primero en salir)</label>
@@ -194,6 +195,39 @@ VIEWS.config = async (el, sub) => {
     $('#fc').onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/categories', formData(e.target)); render(); } catch (er) { fail(er); } };
     $$('[data-dt]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/taxes/' + b.dataset.dt); render(); } catch (er) { fail(er); } }));
     $$('[data-dc]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/categories/' + b.dataset.dc); render(); } catch (er) { fail(er); } }));
+  } else if (cur === 'pasarelas') {
+    const [gw, accs] = await Promise.all([api('GET', '/gateways'), api('GET', '/accounts')]);
+    const act = accs.filter((a) => a.active && a.type === 'activo' && a.code.startsWith('11'));
+    box.innerHTML = `<div class="card"><h2>Pasarelas conectadas</h2><p class="help">Conecte Wompi (enlaces de pago y confirmación automática) u otra pasarela por webhook. Las llaves se guardan cifradas y nunca se vuelven a mostrar.</p>
+      ${gw.gateways.length ? gw.gateways.map((g) => `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(g.name)} <span class="tag">${esc(g.provider_label)}</span> <span class="tag ${g.mode === 'production' ? 'ok' : 'warn'}">${g.mode === 'production' ? 'Producción' : 'Pruebas'}</span> ${g.active ? '' : '<span class="tag err">Inactiva</span>'}</b>
+        <span class="actions"><button class="btn sm sec" data-eg="${g.id}">Editar</button>${g.active ? `<button class="btn sm sec" data-dg="${g.id}">Desactivar</button>` : ''}</span></div>
+        <div class="help">Cobros a la cuenta ${esc(g.account_code)} · llave privada ${g.has_private_key ? '✔' : '—'} · secreto de eventos ${g.has_events_secret ? '✔' : '—'}</div>
+        <label style="margin-top:8px">URL de eventos (péguela en el panel de la pasarela)</label><input readonly value="${esc(location.origin)}/api/gateways/${g.id}/webhook" onclick="this.select()"></div>`).join('') : '<p class="help">Aún no hay pasarelas.</p>'}
+      <p><button class="btn" id="addg">Conectar pasarela</button></p>
+      <p class="help">⚠ Para recibir eventos, el sistema debe estar publicado en una dirección https pública (no <code>localhost</code>).</p></div>
+    <div class="card"><h2>Registrar liquidación</h2><p class="help">Cuando la pasarela deposita en su banco, registre el valor recibido y la comisión: se cierra la cuenta "por liquidar" y la comisión va a gastos.</p>
+      <form id="fs" class="grid g4"><div><label>Pasarela</label><select name="gateway_id">${gw.gateways.map((g) => opt(g.id, g.name)).join('')}</select></div><div><label>Fecha</label><input type="date" name="date" value="${todayStr()}"></div>
+      <div><label>Valor recibido en el banco</label><input name="received" type="number" step="0.01" min="0" required></div><div><label>Comisión e impuestos retenidos</label><input name="fee" type="number" step="0.01" min="0" value="0"></div>
+      <div><label>Banco que recibe</label><select name="bank_account">${act.map((a) => opt(a.code, a.code + ' · ' + a.name, '111005')).join('')}</select></div><div><label>Nota</label><input name="notes"></div><div class="auto" style="align-self:end"><button class="btn">Registrar</button></div></form></div>
+    <div class="card"><h2>Últimos eventos recibidos</h2>${table([{ h: 'Fecha', k: (e) => (e.created_at || '').replace('T', ' ').slice(0, 16) }, { h: 'Pasarela', k: 'gateway' }, { h: 'Transacción', k: 'tx_id' }, { h: 'Estado', k: 'status' }, { h: 'Valor', k: 'amount', m: 1 }, { h: 'Factura', k: (e) => e.doc_number || '' }, { h: 'Resultado', k: 'result' }], gw.events, { empty: 'Todavía no se ha recibido ningún evento' })}</div>`;
+    const form = (g) => {
+      g = g || { provider: gw.providers[0].id, mode: 'sandbox', account_code: '111015', active: 1 };
+      modal(g.id ? 'Editar pasarela' : 'Conectar pasarela', `<form id="f"><div class="grid g2"><div><label>Pasarela</label><select name="provider" id="pv">${gw.providers.map((p) => opt(p.id, p.label, g.provider)).join('')}</select></div><div><label>Nombre</label><input name="name" required value="${esc(g.name || '')}" placeholder="Ej: Wompi tienda"></div>
+        <div><label>Modo</label><select name="mode">${opt('sandbox', 'Pruebas (sandbox)', g.mode)}${opt('production', 'Producción', g.mode)}</select></div><div><label>Cuenta donde entran los cobros</label><select name="account_code">${act.map((a) => opt(a.code, a.code + ' · ' + a.name, g.account_code)).join('')}</select></div>
+        <div id="wq"><label>Llave pública</label><input name="public_key" value="${esc(g.public_key || '')}" placeholder="pub_test_…"></div><div id="wk"><label>Llave privada ${g.has_private_key ? '(guardada; deje vacío para conservarla)' : ''}</label><input name="private_key" type="password" autocomplete="off" placeholder="prv_test_…"></div>
+        <div><label>Secreto de eventos ${g.has_events_secret ? '(guardado; deje vacío para conservarlo)' : ''}</label><input name="events_secret" type="password" autocomplete="off"></div>
+        <div id="gt"><label>Plantilla del enlace de pago</label><input name="link_template" value="${esc(g.link_template || '')}" placeholder="https://…?ref={reference}&monto={amount}"></div></div>
+        <p class="help" id="hp"></p><p><button class="btn">Guardar</button></p></form>`, { onMount: (m, close) => {
+        const sync = () => { const w = $('#pv', m).value === 'wompi'; $('#wq', m).style.display = $('#wk', m).style.display = w ? '' : 'none'; $('#gt', m).style.display = w ? 'none' : '';
+          $('#hp', m).textContent = w ? 'Wompi: copie las llaves y el secreto de eventos desde su panel (Desarrolladores). Los enlaces se crean con la llave privada.' : 'Webhook genérico: la pasarela debe enviar un POST JSON {reference, status, amount, transaction_id} firmado con HMAC-SHA256 del cuerpo en la cabecera X-Signature (hex), usando el secreto de eventos.'; };
+        $('#pv', m).onchange = sync; sync();
+        $('#f', m).onsubmit = async (e) => { e.preventDefault(); const b = formData(e.target); try { g.id ? await api('PUT', '/gateways/' + g.id, b) : await api('POST', '/gateways', b); toast('Guardado'); close(); render(); } catch (er) { fail(er); } };
+      } });
+    };
+    $('#addg').onclick = () => form();
+    $$('[data-eg]').forEach((b) => (b.onclick = () => form(gw.gateways.find((g) => String(g.id) === b.dataset.eg))));
+    $$('[data-dg]').forEach((b) => (b.onclick = async () => { if (!confirm('¿Desactivar esta pasarela?')) return; try { await api('DELETE', '/gateways/' + b.dataset.dg); render(); } catch (er) { fail(er); } }));
+    $('#fs').onsubmit = async (e) => { e.preventDefault(); const f = formData(e.target); if (!f.gateway_id) return fail(new Error('Conecte primero una pasarela')); try { await api('POST', '/gateways/settle', { ...f, gateway_id: +f.gateway_id }); toast('Liquidación registrada'); render(); } catch (er) { fail(er); } };
   } else if (cur === 'usuarios') {
     const users = await api('GET', '/users');
     box.innerHTML = `<div class="card">${table([{ h: 'Usuario', k: 'username' }, { h: 'Nombre', k: 'name' }, { h: 'Rol', k: 'role' }, { h: 'Activo', k: (u) => (u.active ? 'Sí' : 'No') }], users, { onclick: 1 })}</div>

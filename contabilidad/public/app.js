@@ -164,7 +164,8 @@ VIEWS.inicio = async (el) => {
     <div class="kpi"><div class="l">Productos con poco stock</div><div class="v ${d.low_stock.length ? 'neg' : ''}">${d.low_stock.length}</div></div></div>
   <div class="grid g2"><div class="card"><h2>Ventas últimos 30 días</h2>${d.daily.length ? `<div class="bars">${d.daily.map((x) => `<div title="${esc(x.date)}: ${esc(money(x.v))}" style="height:${Math.round(x.v / max * 100)}%"></div>`).join('')}</div>` : '<p class="help">Sin ventas en el período.</p>'}</div>
   <div class="card"><h2>Más vendidos del mes</h2>${table([{ h: 'Producto', k: 'label' }, { h: 'Cant.', k: 'qty', q: 1 }, { h: 'Ventas', k: 'sales', m: 1 }], d.top_products, { empty: 'Sin ventas este mes' })}</div></div>
-  ${d.lots && (d.lots.expired_count || d.lots.expiring_count) ? `<div class="card"><h2>⏳ Vencimientos</h2><p>${d.lots.expired_count ? `<b class="neg">${d.lots.expired_count} lotes vencidos</b> (${money(d.lots.expired_value)}) · ` : ''}${d.lots.expiring_count} lotes vencen en 60 días (${money(d.lots.expiring_value)}). <a href="#inventario/vencimientos">Ver detalle</a></p></div>` : ''}
+  ${d.lots && d.lots.suggestions.length ? `<div class="card"><h2>💡 Sugerencia: haga descuento a lo que está por vencer</h2><p class="help">Al vender, el sistema aplica este descuento solo. Nunca baja del costo.</p>${table([{ h: 'Producto', k: (x) => x.name + (x.lot ? ' · lote ' + x.lot : '') }, { h: 'Vence en', k: (x) => x.days_left + ' días', n: 1 }, { h: 'Cant.', k: 'qty_left', q: 1 }, { h: 'Precio actual', k: (x) => x.price, m: 1 }, { h: 'Descuento', k: (x) => x.suggest.pct + '%', n: 1 }, { h: 'Precio sugerido', k: (x) => x.suggest.price, m: 1 }], d.lots.suggestions)}</div>` : ''}
+  ${d.lots && (d.lots.expired_count || d.lots.expiring_count) ? `<div class="card"><h2>⏳ Vencimientos</h2><p>${d.lots.expired_count ? `<b class="neg">${d.lots.expired_count} lotes vencidos</b> (${money(d.lots.expired_value)}) · ` : ''}${d.lots.expiring_count} lotes vencen en 90 días (${money(d.lots.expiring_value)}). <a href="#inventario/vencimientos">Ver detalle</a></p></div>` : ''}
   ${d.low_stock.length ? `<div class="card"><h2>⚠ Reabastecer</h2>${table([{ h: 'Código', k: 'code' }, { h: 'Producto', k: 'name' }, { h: 'Existencia', k: 'stock', q: 1 }, { h: 'Mínimo', k: 'min_stock', q: 1 }], d.low_stock)}</div>` : ''}
   <div class="card"><h2>Caja y bancos</h2>${table([{ h: 'Cuenta', k: (r) => r.code + ' · ' + r.name }, { h: 'Saldo', k: 'balance', m: 1 }], d.cash)}</div>`;
 };
@@ -207,11 +208,13 @@ async function showDoc(id, reload) {
     ${d.payments.length ? `<h3 class="noprint">Cobros / pagos</h3><div class="noprint">${table([{ h: 'Fecha', k: 'date' }, { h: 'Cuenta', k: 'account_name' }, { h: 'Valor', k: 'amount', m: 1 }, { h: 'Estado', k: 'status' },
       { h: '', raw: 1, k: (p) => (p.status === 'activo' && can('admin', 'contador') ? `<button class="btn sm sec" data-vp="${p.id}">Anular</button>` : '') }], d.payments)}</div>` : ''}
     <div class="actions noprint" style="margin-top:14px"><button class="btn sec" id="prt">Imprimir</button>
+    ${d.type === 'venta' && d.status === 'activo' && d.balance > 0.004 && (c.gateways || []).length ? '<button class="btn sec" id="plink">Enlace de pago</button>' : ''}
     ${d.status === 'activo' && d.balance > 0.004 ? `<button class="btn" id="pay">${d.type === 'venta' ? 'Registrar cobro' : 'Registrar pago'}</button>` : ''}
     ${d.status === 'activo' && can('admin', 'contador') ? '<button class="btn danger" id="void">Anular documento</button>' : ''}</div>`;
   modal(`${TYPE_NAME[d.type]} ${d.number}`, html, { onMount: (el, close) => {
     $('#prt', el).onclick = () => window.print();
     const done = () => { close(); if (reload) reload(); };
+    const pl = $('#plink', el); if (pl) pl.onclick = () => payLinkForm(d);
     const pay = $('#pay', el); if (pay) pay.onclick = () => payForm(d, () => { close(); showDoc(id, reload); if (reload) reload(); });
     const vd = $('#void', el); if (vd) vd.onclick = async () => {
       if (!confirm('¿Anular este documento? Se revertirán inventario y contabilidad.')) return;
@@ -221,6 +224,23 @@ async function showDoc(id, reload) {
       if (!confirm('¿Anular este ' + (d.type === 'venta' ? 'cobro' : 'pago') + '?')) return;
       try { await api('POST', `/payments/${b.dataset.vp}/void`, { date: todayStr() }); toast('Anulado'); close(); showDoc(id, reload); if (reload) reload(); } catch (e) { fail(e); }
     }));
+  } });
+}
+
+function payLinkForm(d) {
+  const gws = S.cfg.gateways;
+  modal('Enlace de pago · ' + d.number, `<form id="f"><p class="help">Se crea un enlace por el saldo de <b>${money(d.balance)}</b>. Cuando el cliente pague, la factura se marca como cobrada automáticamente.</p>
+    <p><label>Pasarela</label><select name="gateway_id">${gws.map((g) => opt(g.id, g.name)).join('')}</select></p><button class="btn">Generar enlace</button></form><div id="out"></div>`, { small: true, onMount: (el) => {
+    $('#f', el).onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await api('POST', `/documents/${d.id}/pay-link`, { gateway_id: +formData(e.target).gateway_id });
+        let ph = String(d.third_phone || '').replace(/\D/g, ''); if (ph.length === 10 && ph[0] === '3') ph = '57' + ph;
+        const msg = `Hola, le comparto el enlace para pagar la factura ${d.number} por ${money(r.amount)}: ${r.url}`;
+        $('#out', el).innerHTML = `<p style="margin-top:12px"><input id="lk" readonly value="${esc(r.url)}"></p><div class="actions"><button class="btn sec" id="cp">Copiar</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(msg)}">Enviar por WhatsApp</a></div>`;
+        $('#cp', el).onclick = () => { $('#lk', el).select(); navigator.clipboard && navigator.clipboard.writeText(r.url); toast('Enlace copiado'); };
+      } catch (er) { fail(er); }
+    };
   } });
 }
 
@@ -263,6 +283,19 @@ async function docForm(el, type) {
   const byKey = new Map();
   for (const p of products) { byKey.set(p.code.toLowerCase(), p); if (p.barcode) byKey.set(String(p.barcode).toLowerCase(), p); }
   const thirdSel = $('[name=third_id]');
+  // Venta: avisa si el lote que sale primero está por vencer y propone el descuento; si ya venció, advierte.
+  const expiryHint = (tr, p) => {
+    const h = $('.hint', tr); h.textContent = ''; h.style.color = '';
+    if (type !== 'venta' || !p.next_lot) return;
+    const l = p.next_lot, t = thirds.find((x) => String(x.id) === thirdSel.value);
+    const sug = t && t.price_list === 'mayorista' && p.sug2 ? p.sug2 : p.sug;
+    if (l.expired) { h.style.color = 'var(--err)'; h.textContent = `⚠ El lote ${l.lot || ''} venció el ${l.expiry}. No lo venda: dé de baja el producto.`; return; }
+    if (!sug) return;
+    if (sug.pct > 0) {
+      $('.disc', tr).value = sug.pct; h.style.color = 'var(--warn)';
+      h.textContent = `💡 Lote ${l.lot || ''} vence en ${l.days_left} días (quedan ${qty(l.qty_left)}): descuento sugerido ${sug.pct}% → precio ${money(sug.price)}${sug.limited ? ' (limitado por el costo)' : ''}`;
+    } else if (sug.at_cost) h.textContent = `Lote ${l.lot || ''} vence en ${l.days_left} días, pero el margen no permite descuento.`;
+  };
   const priceFor = (p) => {
     if (type !== 'venta') return p.cost || 0;
     const t = thirds.find((x) => String(x.id) === thirdSel.value);
@@ -272,7 +305,7 @@ async function docForm(el, type) {
   const taxOpts = (sel) => `<option value="">Sin impuesto</option>${taxes.map((t) => opt(t.id, t.name, sel)).join('')}`;
   const addLine = () => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input class="prod" list="plist" placeholder="${type === 'gasto' ? 'Describa el gasto' : 'Escanee o busque por código, barras o nombre'}"></td>
+    tr.innerHTML = `<td><input class="prod" list="plist" placeholder="${type === 'gasto' ? 'Describa el gasto' : 'Escanee o busque por código, barras o nombre'}"><div class="help hint" style="margin-top:3px"></div></td>
       ${type === 'gasto' ? `<td><select class="acc">${accounts.map((a) => opt(a.code, a.code + ' · ' + a.name, '519595')).join('')}</select></td>` : ''}
       ${lotCols ? '<td><input class="lot" style="width:100px"></td><td><input class="exp" type="date"></td>' : ''}
       <td><input class="qty" type="number" step="any" min="0" value="1" style="width:80px"></td><td><input class="price" type="number" step="any" min="0" value="0" style="width:110px"></td>
@@ -282,8 +315,8 @@ async function docForm(el, type) {
     const resolve = () => {
       const inp = $('.prod', tr);
       const p = byLabel.get(inp.value) || byKey.get(inp.value.trim().toLowerCase());
-      if (p) { inp.value = p.code + ' · ' + p.name; tr._p = p; $('.price', tr).value = priceFor(p); if (p.tax_id) $('.tax', tr).value = p.tax_id; calc(); }
-      else tr._p = null;
+      if (p) { inp.value = p.code + ' · ' + p.name; tr._p = p; $('.price', tr).value = priceFor(p); if (p.tax_id) $('.tax', tr).value = p.tax_id; expiryHint(tr, p); calc(); }
+      else { tr._p = null; $('.hint', tr).textContent = ''; }
       return p;
     };
     $('.prod', tr).addEventListener('change', resolve);
@@ -322,7 +355,7 @@ async function docForm(el, type) {
   }
   $('#pm').onchange = calc; addLine(); calc();
   $$('.wh').forEach((cb) => (cb.onchange = calc));
-  thirdSel.onchange = () => { for (const tr of body.children) if (tr._p) $('.price', tr).value = priceFor(tr._p); calc(); };
+  thirdSel.onchange = () => { for (const tr of body.children) if (tr._p) { $('.price', tr).value = priceFor(tr._p); $('.disc', tr).value = 0; expiryHint(tr, tr._p); } calc(); };
   $('#addl').onclick = () => { addLine().querySelector('.prod').focus(); };
   $('#f').onsubmit = async (e) => {
     e.preventDefault();
@@ -484,7 +517,7 @@ VIEWS.inventario = async (el, sub) => {
       const r = await api('GET', '/reports/lots' + qs({ days: $('#vd').value }));
       const tag = (x) => ({ vencido: '<span class="tag err">Vencido</span>', 'por vencer': '<span class="tag warn">Por vencer</span>', vigente: '<span class="tag ok">Vigente</span>', 'sin fecha': '<span class="tag">Sin fecha</span>' }[x]);
       $('#vr').innerHTML = `<p class="help">Vencido: <b class="neg">${money(r.expired_value)}</b> (${r.expired_count} lotes) · Por vencer: <b>${money(r.expiring_value)}</b> (${r.expiring_count} lotes). La venta descuenta primero el lote que vence antes.</p>` +
-        table([{ h: 'Producto', k: (x) => x.code + ' · ' + x.name }, { h: 'Marca', k: (x) => x.brand || '' }, { h: 'Lote', k: (x) => x.lot || '' }, { h: 'Vence', k: (x) => x.expiry || '—' }, { h: 'Días', k: (x) => (x.days_left ?? ''), n: 1 }, { h: 'Cant.', k: 'qty_left', q: 1 }, { h: 'Valor', k: 'value', m: 1 }, { h: '', k: (x) => tag(x.status), raw: 1 }], r.rows, { empty: 'No hay lotes registrados. Capture lote y vencimiento al registrar una compra.' });
+        table([{ h: 'Producto', k: (x) => x.code + ' · ' + x.name }, { h: 'Marca', k: (x) => x.brand || '' }, { h: 'Lote', k: (x) => x.lot || '' }, { h: 'Vence', k: (x) => x.expiry || '—' }, { h: 'Días', k: (x) => (x.days_left ?? ''), n: 1 }, { h: 'Cant.', k: 'qty_left', q: 1 }, { h: 'Valor', k: 'value', m: 1 }, { h: 'Precio actual', k: (x) => x.price, m: 1 }, { h: 'Desc. sugerido', k: (x) => (x.suggest ? (x.suggest.pct ? x.suggest.pct + '%' : 'sin margen') : x.status === 'vencido' ? 'Dar de baja' : ''), n: 1 }, { h: 'Precio sugerido', k: (x) => (x.suggest && x.suggest.pct ? money(x.suggest.price) + (x.suggest2 && x.suggest2.pct ? ' · mayor. ' + money(x.suggest2.price) : '') : ''), raw: 1, n: 1 }, { h: '', k: (x) => tag(x.status), raw: 1 }], r.rows, { empty: 'No hay lotes registrados. Capture lote y vencimiento al registrar una compra.' });
     };
     $('#vd').onchange = () => go().catch(fail); await go();
   } else {

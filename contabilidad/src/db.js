@@ -51,6 +51,19 @@ CREATE TABLE IF NOT EXISTS lots (
 );
 CREATE INDEX IF NOT EXISTS ix_lot_prod ON lots(product_id, expiry);
 CREATE TABLE IF NOT EXISTS lot_moves (id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL, lot_id INTEGER NOT NULL, qty REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS gateways (
+  id INTEGER PRIMARY KEY, provider TEXT NOT NULL, name TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'sandbox',
+  public_key TEXT, private_key_enc TEXT, events_secret_enc TEXT, link_template TEXT,
+  account_code TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS gateway_links (
+  id INTEGER PRIMARY KEY, gateway_id INTEGER NOT NULL, doc_id INTEGER NOT NULL, reference TEXT NOT NULL UNIQUE,
+  external_id TEXT, url TEXT NOT NULL, amount REAL NOT NULL, created_at TEXT, user_id INTEGER
+);
+CREATE TABLE IF NOT EXISTS gateway_events (
+  id INTEGER PRIMARY KEY, gateway_id INTEGER NOT NULL, tx_id TEXT NOT NULL, status TEXT, amount REAL, doc_id INTEGER,
+  result TEXT, created_at TEXT, UNIQUE(gateway_id, tx_id)
+);
 CREATE TABLE IF NOT EXISTS stock_moves (
   id INTEGER PRIMARY KEY, product_id INTEGER NOT NULL, date TEXT NOT NULL, kind TEXT NOT NULL, qty REAL NOT NULL,
   unit_cost REAL NOT NULL, value REAL NOT NULL, bal_qty REAL NOT NULL, bal_value REAL NOT NULL, doc_id INTEGER, notes TEXT

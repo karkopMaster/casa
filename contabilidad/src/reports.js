@@ -135,14 +135,38 @@ function inventoryReport(db) {
   return { rows, total_value: round2(rows.reduce((s, r) => s + r.value, 0)) };
 }
 
+// Escalones de descuento por días para vencer: "30:30,60:20,90:10" = ≤30 días 30 %, ≤60 días 20 %, ≤90 días 10 %.
+function parseTiers(str) {
+  return String(str || '30:30,60:20,90:10').split(',').map((x) => x.split(':').map(Number))
+    .filter(([d, p]) => Number.isFinite(d) && Number.isFinite(p) && d >= 0 && p > 0 && p <= 90).sort((a, b) => a[0] - b[0]);
+}
+// Precio sugerido para un lote próximo a vencer. Nunca baja del costo; redondea hacia arriba a $100 si el precio es ≥ $1.000.
+function suggestDiscount(daysLeft, price, cost, tiers) {
+  if (daysLeft == null || daysLeft < 0 || !(price > 0)) return null;
+  const t = tiers.find(([d]) => daysLeft <= d);
+  if (!t) return null;
+  let pct = t[1];
+  if (cost > 0) pct = Math.min(pct, Math.max(Math.floor((1 - cost / price) * 100), 0));
+  const limited = pct < t[1];
+  if (pct <= 0) return { pct: 0, price, limited: true, at_cost: true };
+  let sp = price * (1 - pct / 100);
+  if (price >= 1000) sp = Math.ceil(sp / 100) * 100;
+  sp = Math.min(round2(sp), price);
+  return { pct: Math.floor((1 - sp / price) * 1000 + 1e-6) / 10, price: sp, limited };
+}
+
 // Lotes con existencia, ordenados por vencimiento. days = ventana de "próximos a vencer".
 function lotsReport(db, q) {
   const days = Math.max(1, parseInt(q.days, 10) || 90), now = today();
   const limit = new Date(Date.parse(now) + days * 86400000).toISOString().slice(0, 10);
-  const rows = db.prepare(`SELECT l.id, l.lot, l.expiry, l.qty_left, l.unit_cost, ROUND(l.qty_left*l.unit_cost,2) value, p.code, p.name, p.brand
+  const rows = db.prepare(`SELECT l.id, l.lot, l.expiry, l.qty_left, l.unit_cost, ROUND(l.qty_left*l.unit_cost,2) value, p.code, p.name, p.brand, p.price, p.price2, p.cost AS pcost
     FROM lots l JOIN products p ON p.id=l.product_id WHERE l.qty_left>0 ORDER BY l.expiry IS NULL, l.expiry, p.name`).all();
+  const tiers = parseTiers(C.getSetting(db, 'expiry_tiers', ''));
   for (const r of rows) {
     r.days_left = r.expiry ? Math.floor((Date.parse(r.expiry) - Date.parse(now)) / 86400000) : null;
+    r.suggest = suggestDiscount(r.days_left, r.price, r.pcost, tiers);
+    r.suggest2 = r.price2 > 0 ? suggestDiscount(r.days_left, r.price2, r.pcost, tiers) : null;
+    delete r.pcost;
     r.status = !r.expiry ? 'sin fecha' : r.expiry < now ? 'vencido' : r.expiry <= limit ? 'por vencer' : 'vigente';
   }
   const sum = (st) => round2(rows.filter((r) => r.status === st).reduce((s, r) => s + r.value, 0));
@@ -173,12 +197,12 @@ function dashboard(db) {
   const d30 = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
   const daily = db.prepare("SELECT date, ROUND(SUM(subtotal),2) v FROM documents WHERE type='venta' AND status='activo' AND date>=? AND date<=? GROUP BY date ORDER BY date").all(d30, now);
   const invValue = inventoryReport(db).total_value;
-  const lots = C.lotsOn(db) ? lotsReport(db, { days: 60 }) : null;
+  const lots = C.lotsOn(db) ? lotsReport(db, { days: 90 }) : null;
   return {
     month_from: ms, sales_month: round2(sales.v), sales_count: sales.n, purchases_month: round2(purchases.v), profit_month: inc.utilidad_neta,
     cash, cash_total: round2(cash.reduce((s, c) => s + c.balance, 0)), receivable: round2(cxc.v), payable: round2(cxp.v),
-    overdue_count: vencidas.n, overdue_total: round2(vencidas.v), lots: lots && { expired_count: lots.expired_count, expiring_count: lots.expiring_count, expired_value: lots.expired_value, expiring_value: lots.expiring_value }, low_stock: low, top_products: top, daily, inventory_value: invValue,
+    overdue_count: vencidas.n, overdue_total: round2(vencidas.v), lots: lots && { suggestions: lots.rows.filter((r) => r.suggest && r.suggest.pct > 0).slice(0, 8), expired_count: lots.expired_count, expiring_count: lots.expiring_count, expired_value: lots.expired_value, expiring_value: lots.expiring_value }, low_stock: low, top_products: top, daily, inventory_value: invValue,
   };
 }
 
-module.exports = { trialBalance, incomeStatement, balanceSheet, ledger, journal, salesReport, agingReport, inventoryReport, kardex, lotsReport, dashboard };
+module.exports = { trialBalance, incomeStatement, balanceSheet, ledger, journal, salesReport, agingReport, inventoryReport, kardex, lotsReport, parseTiers, suggestDiscount, dashboard };
