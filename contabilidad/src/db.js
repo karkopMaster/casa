@@ -18,11 +18,11 @@ CREATE TABLE IF NOT EXISTS taxes (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ra
 CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS thirds (
   id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'cliente', doc_id TEXT, name TEXT NOT NULL, company TEXT,
-  email TEXT, phone TEXT, address TEXT, price_list TEXT NOT NULL DEFAULT 'detal', active INTEGER NOT NULL DEFAULT 1
+  email TEXT, phone TEXT, address TEXT, price_list TEXT NOT NULL DEFAULT 'detal', doc_type TEXT NOT NULL DEFAULT '13', dv TEXT, city_code TEXT, active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS products (
   id INTEGER PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL, category_id INTEGER, unit TEXT DEFAULT 'und',
-  price REAL NOT NULL DEFAULT 0, price2 REAL NOT NULL DEFAULT 0, brand TEXT, barcode TEXT, nso TEXT, cost REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0, min_stock REAL NOT NULL DEFAULT 0,
+  unit_code TEXT NOT NULL DEFAULT '94', price REAL NOT NULL DEFAULT 0, price2 REAL NOT NULL DEFAULT 0, brand TEXT, barcode TEXT, nso TEXT, cost REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0, min_stock REAL NOT NULL DEFAULT 0,
   tax_id INTEGER, is_service INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS documents (
@@ -64,6 +64,12 @@ CREATE TABLE IF NOT EXISTS gateway_events (
   id INTEGER PRIMARY KEY, gateway_id INTEGER NOT NULL, tx_id TEXT NOT NULL, status TEXT, amount REAL, doc_id INTEGER,
   result TEXT, created_at TEXT, UNIQUE(gateway_id, tx_id)
 );
+CREATE TABLE IF NOT EXISTS einvoices (
+  id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'factura', status TEXT NOT NULL,
+  number TEXT, cufe TEXT, qr_url TEXT, pdf_url TEXT, provider TEXT, message TEXT, response TEXT, reason TEXT,
+  created_at TEXT, updated_at TEXT, user_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS ix_ei_doc ON einvoices(doc_id);
 CREATE TABLE IF NOT EXISTS stock_moves (
   id INTEGER PRIMARY KEY, product_id INTEGER NOT NULL, date TEXT NOT NULL, kind TEXT NOT NULL, qty REAL NOT NULL,
   unit_cost REAL NOT NULL, value REAL NOT NULL, bal_qty REAL NOT NULL, bal_value REAL NOT NULL, doc_id INTEGER, notes TEXT

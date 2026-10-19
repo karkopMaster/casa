@@ -150,7 +150,7 @@ VIEWS.informes = async (el, sub) => {
 
 /* ---------- configuración ---------- */
 VIEWS.config = async (el, sub) => {
-  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos, retenciones y categorías'], ['pasarelas', 'Pasarelas de pago'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
+  const tabs = [['empresa', 'Empresa'], ['cuentas', 'Cuentas por defecto'], ['impuestos', 'Impuestos, retenciones y categorías'], ['pasarelas', 'Pasarelas de pago'], ['einvoice', 'Facturación electrónica'], ['usuarios', 'Usuarios'], ['respaldo', 'Cierre y respaldo']];
   const cur = sub || 'empresa';
   setTop('');
   el.innerHTML = tabsBar('config', tabs, cur) + '<div id="ct"></div>';
@@ -162,8 +162,8 @@ VIEWS.config = async (el, sub) => {
     try { await api('PUT', '/settings', b); toast('Guardado'); render(); } catch (er) { fail(er); }
   };
   if (cur === 'empresa') {
-    box.innerHTML = `<form class="card" id="f"><div class="grid g2"><div><label>Nombre</label><input name="company_name" value="${esc(c.company_name)}" required></div><div><label>NIT</label><input name="company_nit" value="${esc(c.company_nit)}"></div>
-      <div><label>Teléfono</label><input name="company_phone" value="${esc(c.company_phone)}"></div><div><label>Dirección</label><input name="company_address" value="${esc(c.company_address)}"></div>
+    box.innerHTML = `<form class="card" id="f"><div class="grid g2"><div><label>Nombre</label><input name="company_name" value="${esc(c.company_name)}" required></div><div><label>NIT con dígito de verificación (900123456-7)</label><input name="company_nit" value="${esc(c.company_nit)}"></div>
+      <div><label>Teléfono</label><input name="company_phone" value="${esc(c.company_phone)}"></div><div><label>Correo de la empresa</label><input name="company_email" type="email" value="${esc(c.company_email || '')}"></div><div><label>Código municipio DANE</label><input name="company_city_code" value="${esc(c.company_city_code || '')}" placeholder="Ej: 47189 Ciénaga"></div><div><label>Dirección</label><input name="company_address" value="${esc(c.company_address)}"></div>
       <div><label>Símbolo de moneda</label><input name="currency" value="${esc(c.currency)}"></div><div><label>Decimales a mostrar (0 para pesos)</label><input name="decimals" type="number" min="0" max="2" value="${esc(c.decimals ?? 0)}"></div>
       <div><label>Resolución DIAN / régimen (se imprime bajo el nombre)</label><input name="dian_text" value="${esc(c.dian_text)}" placeholder="Ej: Resolución 18764… · No responsable de IVA"></div><div><label>Pie de la factura</label><input name="print_footer" value="${esc(c.print_footer)}"></div>
       <div style="grid-column:1/-1"><label>Descuentos por vencimiento (días:porcentaje, separados por coma)</label><input name="expiry_tiers" value="${esc(c.expiry_tiers || '30:30,60:20,90:10')}"><div class="help">Ej. 30:30,60:20,90:10 = si vence en ≤30 días sugerir 30 %, ≤60 días 20 %, ≤90 días 10 %.</div></div>
@@ -195,6 +195,23 @@ VIEWS.config = async (el, sub) => {
     $('#fc').onsubmit = async (e) => { e.preventDefault(); try { await api('POST', '/categories', formData(e.target)); render(); } catch (er) { fail(er); } };
     $$('[data-dt]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/taxes/' + b.dataset.dt); render(); } catch (er) { fail(er); } }));
     $$('[data-dc]').forEach((b) => (b.onclick = async () => { try { await api('DELETE', '/categories/' + b.dataset.dc); render(); } catch (er) { fail(er); } }));
+  } else if (cur === 'einvoice') {
+    const e = await api('GET', '/einvoice/config');
+    box.innerHTML = `<form class="card" id="f"><h2>Facturación electrónica (DIAN)</h2>
+      <p class="help">La DIAN exige emitir la factura a través de un <b>proveedor tecnológico autorizado</b> (Factus, Alegra, Siigo, Facturatech, etc.). Este sistema arma el documento con los datos exigidos (NIT, tipo de documento, IVA por línea, unidad, forma de pago…), lo envía al proveedor, guarda el CUFE y el estado, y emite la <b>nota crédito</b> cuando se anula una venta ya aceptada.</p>
+      <div class="grid g2"><div><label>Proveedor</label><select name="provider" id="ep">${e.providers.map((p) => opt(p.id, p.label, e.provider)).join('')}</select></div><div><label>Ambiente</label><select name="mode">${opt('sandbox', 'Habilitación / pruebas', e.mode)}${opt('production', 'Producción', e.mode)}</select></div></div>
+      <div id="gx"><div class="grid g2" style="margin-top:10px"><div><label>URL para enviar facturas (https)</label><input name="url" value="${esc(e.url)}"></div><div><label>URL para notas crédito (opcional)</label><input name="url_nc" value="${esc(e.url_nc)}"></div>
+        <div><label>Autenticación</label><select name="auth">${opt('bearer', 'Bearer token', e.auth)}${opt('basic', 'Usuario y clave (Basic)', e.auth)}${opt('header', 'Cabecera personalizada', e.auth)}</select></div><div><label>Usuario (solo Basic) / nombre de cabecera</label><input name="user" value="${esc(e.user)}" placeholder="usuario"><input name="header" value="${esc(e.header)}" placeholder="X-Api-Key" style="margin-top:4px"></div>
+        <div><label>Clave / token ${e.has_secret ? '(guardado; vacío = conservar)' : ''}</label><input name="secret" type="password" autocomplete="off"></div><div></div></div>
+        <h3>Dónde viene cada dato en la respuesta del proveedor (ruta JSON, ej. <code>data.cufe</code>)</h3><div class="grid g3"><div><label>Estado</label><input name="map_status" value="${esc(e.map_status)}" placeholder="data.status"></div><div><label>Número DIAN</label><input name="map_number" value="${esc(e.map_number)}"></div><div><label>CUFE</label><input name="map_cufe" value="${esc(e.map_cufe)}"></div><div><label>URL del QR</label><input name="map_qr" value="${esc(e.map_qr)}"></div><div><label>URL del PDF</label><input name="map_pdf" value="${esc(e.map_pdf)}"></div></div>
+        <p class="help">Si no indica la ruta del estado, la factura queda "enviada" hasta que el proveedor confirme por la URL de eventos.</p></div>
+      <div class="grid g2" style="margin-top:10px"><div><label>Resolución de numeración DIAN (texto)</label><input name="resolution" value="${esc(e.resolution)}" placeholder="Resolución 18764… del …, prefijo SETP del 1 al 5000"></div><div><label>Secreto de eventos ${e.has_webhook_secret ? '(guardado; vacío = conservar)' : ''}</label><input name="webhook_secret" type="password" autocomplete="off"></div></div>
+      <p><label><input type="checkbox" name="autosend" style="width:auto" ${e.autosend === '1' ? 'checked' : ''}> Enviar a la DIAN automáticamente al guardar cada venta</label></p>
+      <label>URL de eventos para el proveedor (confirmación de la DIAN)</label><input readonly value="${esc(location.origin)}/api/einvoice/webhook" onclick="this.select()"><p class="help">POST JSON <code>{einvoice_id | reference, status, number, cufe, qr_url, pdf_url, message}</code> con firma HMAC-SHA256 del cuerpo en la cabecera <code>X-Signature</code>.</p>
+      <p><button class="btn">Guardar</button></p></form>
+      <div class="card"><h2>Cómo probar</h2><ol class="help"><li>Elija <b>Simulador</b>, guarde, y en una venta use <b>Enviar a la DIAN</b>: genera un CUFE de prueba <u>sin validez fiscal</u>.</li><li>Para producción, el contador debe habilitar al emisor en la DIAN con el proveedor y obtener la resolución de numeración.</li><li>Cada proveedor define su propio formato; el modo <b>API REST/JSON</b> envía el documento normalizado a la URL que usted indique (un puente propio o un servicio intermedio). El adaptador nativo de un proveedor concreto se agrega con su documentación y credenciales de pruebas.</li></ol></div>`;
+    const sync = () => { $('#gx').style.display = $('#ep').value === 'generico' ? '' : 'none'; }; $('#ep').onchange = sync; sync();
+    $('#f').onsubmit = async (ev) => { ev.preventDefault(); const b = formData(ev.target); try { await api('PUT', '/einvoice/config', b); toast('Guardado'); render(); } catch (er) { fail(er); } };
   } else if (cur === 'pasarelas') {
     const [gw, accs] = await Promise.all([api('GET', '/gateways'), api('GET', '/accounts')]);
     const act = accs.filter((a) => a.active && a.type === 'activo' && a.code.startsWith('11'));

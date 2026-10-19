@@ -153,6 +153,7 @@ VIEWS.inicio = async (el) => {
   const d = await api('GET', '/reports/dashboard');
   setTop('<a class="btn" href="#ventas/nueva">Nueva venta</a>');
   const max = Math.max(1, ...d.daily.map((x) => x.v));
+  const eiPend = S.cfg.einv_provider && S.cfg.einv_provider !== 'none' ? await api('GET', '/einvoice/pending').catch(() => []) : [];
   el.innerHTML = `<div class="grid g4" style="margin-bottom:16px">
     <div class="kpi"><div class="l">Ventas del mes</div><div class="v">${money(d.sales_month)}</div><div class="help">${d.sales_count} facturas</div></div>
     <div class="kpi"><div class="l">Compras del mes</div><div class="v">${money(d.purchases_month)}</div></div>
@@ -164,6 +165,7 @@ VIEWS.inicio = async (el) => {
     <div class="kpi"><div class="l">Productos con poco stock</div><div class="v ${d.low_stock.length ? 'neg' : ''}">${d.low_stock.length}</div></div></div>
   <div class="grid g2"><div class="card"><h2>Ventas últimos 30 días</h2>${d.daily.length ? `<div class="bars">${d.daily.map((x) => `<div title="${esc(x.date)}: ${esc(money(x.v))}" style="height:${Math.round(x.v / max * 100)}%"></div>`).join('')}</div>` : '<p class="help">Sin ventas en el período.</p>'}</div>
   <div class="card"><h2>Más vendidos del mes</h2>${table([{ h: 'Producto', k: 'label' }, { h: 'Cant.', k: 'qty', q: 1 }, { h: 'Ventas', k: 'sales', m: 1 }], d.top_products, { empty: 'Sin ventas este mes' })}</div></div>
+  ${eiPend.length ? `<div class="card"><h2>🧾 Facturas electrónicas por revisar</h2>${table([{ h: 'Venta', k: 'doc_number' }, { h: 'Estado', k: (x) => `<span class="tag err">${esc(x.status)}</span>`, raw: 1 }, { h: 'Detalle', k: (x) => x.message || '' }], eiPend)}<p class="help">Abra la venta y use "Enviar a la DIAN" para reintentar.</p></div>` : ''}
   ${d.lots && d.lots.suggestions.length ? `<div class="card"><h2>💡 Sugerencia: haga descuento a lo que está por vencer</h2><p class="help">Al vender, el sistema aplica este descuento solo. Nunca baja del costo.</p>${table([{ h: 'Producto', k: (x) => x.name + (x.lot ? ' · lote ' + x.lot : '') }, { h: 'Vence en', k: (x) => x.days_left + ' días', n: 1 }, { h: 'Cant.', k: 'qty_left', q: 1 }, { h: 'Precio actual', k: (x) => x.price, m: 1 }, { h: 'Descuento', k: (x) => x.suggest.pct + '%', n: 1 }, { h: 'Precio sugerido', k: (x) => x.suggest.price, m: 1 }], d.lots.suggestions)}</div>` : ''}
   ${d.lots && (d.lots.expired_count || d.lots.expiring_count) ? `<div class="card"><h2>⏳ Vencimientos</h2><p>${d.lots.expired_count ? `<b class="neg">${d.lots.expired_count} lotes vencidos</b> (${money(d.lots.expired_value)}) · ` : ''}${d.lots.expiring_count} lotes vencen en 90 días (${money(d.lots.expiring_value)}). <a href="#inventario/vencimientos">Ver detalle</a></p></div>` : ''}
   ${d.low_stock.length ? `<div class="card"><h2>⚠ Reabastecer</h2>${table([{ h: 'Código', k: 'code' }, { h: 'Producto', k: 'name' }, { h: 'Existencia', k: 'stock', q: 1 }, { h: 'Mínimo', k: 'min_stock', q: 1 }], d.low_stock)}</div>` : ''}
@@ -204,21 +206,37 @@ async function showDoc(id, reload) {
     ${table([{ h: 'Descripción', k: 'description' }, { h: 'Cant.', k: 'qty', q: 1 }, { h: 'Precio', k: 'price', m: 1 }, { h: 'Desc %', k: 'disc_pct', n: 1 }, { h: 'Imp. %', k: 'tax_rate', n: 1 }, { h: 'Total', k: 'total', m: 1 }], d.lines)}
     <div class="totals"><div><span>Subtotal</span><span>${money(d.subtotal)}</span></div>${d.discount ? `<div><span>Descuentos incluidos</span><span>${money(d.discount)}</span></div>` : ''}<div><span>Impuestos</span><span>${money(d.tax)}</span></div>${(d.withholdings || []).map((w) => `<div><span>(−) ${esc(w.name)}</span><span>${money(w.amount)}</span></div>`).join('')}
     <div class="big"><span>Total</span><span>${money(d.total)}</span></div><div><span>Pagado</span><span>${money(d.paid)}</span></div><div><b>Saldo</b><b>${money(d.balance)}</b></div></div>
-    ${d.ref ? `<p class="help">Ref.: ${esc(d.ref)}</p>` : ''}${d.notes ? `<p class="help">${esc(d.notes)}</p>` : ''}${c.print_footer ? `<p class="help" style="margin-top:16px">${esc(c.print_footer)}</p>` : ''}</div>
+    ${(() => { const f = (d.einvoices || []).find((x) => x.kind === 'factura' && x.status === 'aceptada'); return f ? `<p class="help"><b>Factura electrónica N.º ${esc(f.number || '')}</b>${f.cufe ? `<br>CUFE: <span style="word-break:break-all">${esc(f.cufe)}</span>` : ''}${f.qr_url ? `<br><a href="${esc(f.qr_url)}" target="_blank" rel="noopener">Verificar en la DIAN</a>` : ''}${f.message ? `<br><i>${esc(f.message)}</i>` : ''}</p>` : ''; })()}
+    ${d.ref ? `<p class="help">Ref.: ${esc(d.ref)}</p>` : ''}${d.notes ? `<p class="help">${esc(d.notes)}</p>` : ''}${c.print_footer && !(d.einvoices || []).some((x) => x.kind === 'factura' && x.status === 'aceptada') ? `<p class="help" style="margin-top:16px">${esc(c.print_footer)}</p>` : ''}</div>
+    ${d.type === 'venta' && (d.einvoices || []).length ? `<h3 class="noprint">Facturación electrónica (DIAN)</h3><div class="noprint">${table([{ h: 'Documento', k: (x) => (x.kind === 'factura' ? 'Factura' : 'Nota crédito') }, { h: 'Estado', k: (x) => `<span class="tag ${x.status === 'aceptada' ? 'ok' : x.status === 'enviada' ? 'warn' : 'err'}">${esc(x.status)}</span>`, raw: 1 }, { h: 'Número', k: (x) => x.number || '' }, { h: 'Detalle', k: (x) => x.message || '' }], d.einvoices)}</div>` : ''}
     ${d.payments.length ? `<h3 class="noprint">Cobros / pagos</h3><div class="noprint">${table([{ h: 'Fecha', k: 'date' }, { h: 'Cuenta', k: 'account_name' }, { h: 'Valor', k: 'amount', m: 1 }, { h: 'Estado', k: 'status' },
       { h: '', raw: 1, k: (p) => (p.status === 'activo' && can('admin', 'contador') ? `<button class="btn sm sec" data-vp="${p.id}">Anular</button>` : '') }], d.payments)}</div>` : ''}
     <div class="actions noprint" style="margin-top:14px"><button class="btn sec" id="prt">Imprimir</button>
     ${d.type === 'venta' && d.status === 'activo' && d.balance > 0.004 && (c.gateways || []).length ? '<button class="btn sec" id="plink">Enlace de pago</button>' : ''}
     ${d.status === 'activo' && d.balance > 0.004 ? `<button class="btn" id="pay">${d.type === 'venta' ? 'Registrar cobro' : 'Registrar pago'}</button>` : ''}
-    ${d.status === 'activo' && can('admin', 'contador') ? '<button class="btn danger" id="void">Anular documento</button>' : ''}</div>`;
+    ${d.type === 'venta' && d.status === 'activo' && c.einv_provider && c.einv_provider !== 'none' && !(d.einvoices || []).some((x) => x.kind === 'factura' && ['aceptada', 'enviada'].includes(x.status)) ? '<button class="btn" id="ei">Enviar a la DIAN</button>' : ''}
+    ${d.status === 'activo' && can('admin', 'contador') ? '<button class="btn danger" id="void">Anular documento</button>' : ''}</div><div id="eires" class="help noprint"></div>`;
   modal(`${TYPE_NAME[d.type]} ${d.number}`, html, { onMount: (el, close) => {
     $('#prt', el).onclick = () => window.print();
     const done = () => { close(); if (reload) reload(); };
     const pl = $('#plink', el); if (pl) pl.onclick = () => payLinkForm(d);
     const pay = $('#pay', el); if (pay) pay.onclick = () => payForm(d, () => { close(); showDoc(id, reload); if (reload) reload(); });
+    const ei = $('#ei', el); if (ei) ei.onclick = async () => {
+      try {
+        const chk = await api('GET', `/documents/${id}/einvoice/check`);
+        if (chk.errors.length) return fail(new Error('Antes de enviar corrija: ' + chk.errors.join(' ')));
+        if (chk.warnings.length && !confirm(chk.warnings.join('\n') + '\n\n¿Enviar de todos modos?')) return;
+        ei.disabled = true; const r = await api('POST', `/documents/${id}/einvoice`);
+        if (r.status === 'aceptada') toast('Factura electrónica aceptada'); else if (r.status === 'enviada') toast('Enviada: pendiente de confirmación de la DIAN'); else fail(new Error(`${r.status}: ${r.message || ''}`));
+        close(); showDoc(id, reload);
+      } catch (e) { fail(e); ei.disabled = false; }
+    };
     const vd = $('#void', el); if (vd) vd.onclick = async () => {
-      if (!confirm('¿Anular este documento? Se revertirán inventario y contabilidad.')) return;
-      try { await api('POST', `/documents/${id}/void`, { date: todayStr() }); toast('Documento anulado'); done(); } catch (e) { fail(e); }
+      const fe = (d.einvoices || []).some((x) => x.kind === 'factura' && x.status === 'aceptada');
+      let reason = '';
+      if (fe) { reason = prompt('Esta venta tiene factura electrónica aceptada: se emitirá una NOTA CRÉDITO ante la DIAN.\nMotivo de la anulación:', 'Devolución / anulación de la venta'); if (reason === null) return; }
+      else if (!confirm('¿Anular este documento? Se revertirán inventario y contabilidad.')) return;
+      try { await api('POST', `/documents/${id}/void`, { date: todayStr(), reason }); toast('Documento anulado'); done(); } catch (e) { fail(e); }
     };
     $$('[data-vp]', el).forEach((b) => (b.onclick = async () => {
       if (!confirm('¿Anular este ' + (d.type === 'venta' ? 'cobro' : 'pago') + '?')) return;
@@ -400,7 +418,9 @@ function thirdForm(t, kind, done) {
     <div><label>Documento / NIT</label><input name="doc_id" value="${esc(t.doc_id)}"></div><div><label>Tipo</label><select name="kind">${opt('cliente', 'Cliente', t.kind)}${opt('proveedor', 'Proveedor', t.kind)}${opt('ambos', 'Cliente y proveedor', t.kind)}</select></div>
     <div><label>Email</label><input name="email" type="email" value="${esc(t.email)}"></div><div><label>Teléfono</label><input name="phone" value="${esc(t.phone)}"></div>
     <div><label>Lista de precios</label><select name="price_list">${opt('detal', 'Detal (público)', t.price_list)}${opt('mayorista', 'Mayorista (peluquerías, revendedores)', t.price_list)}</select></div>
-    <div><label>Dirección</label><input name="address" value="${esc(t.address)}"></div></div>
+    <div><label>Tipo de documento (DIAN)</label><select name="doc_type">${[['13', 'Cédula de ciudadanía'], ['31', 'NIT'], ['22', 'Cédula de extranjería'], ['41', 'Pasaporte'], ['12', 'Tarjeta de identidad'], ['42', 'Doc. extranjero']].map((x) => opt(x[0], x[1], t.doc_type || '13')).join('')}</select></div>
+    <div><label>Dígito de verificación (NIT)</label><input name="dv" maxlength="1" value="${esc(t.dv)}"></div><div><label>Código municipio DANE</label><input name="city_code" value="${esc(t.city_code)}" placeholder="Ej: 47189 Ciénaga"></div>
+    <div style="grid-column:1/-1"><label>Dirección</label><input name="address" value="${esc(t.address)}"></div></div>
     ${t.id ? `<p><label><input type="checkbox" name="active" style="width:auto" ${t.active ? 'checked' : ''}> Activo</label></p>` : ''}
     <div class="actions"><button class="btn">Guardar</button>${t.id ? '<button type="button" class="btn sec" id="hist">Ver movimientos</button>' : ''}</div></form>`, { onMount: (el, close) => {
     $('#f', el).onsubmit = async (e) => {
@@ -476,7 +496,7 @@ function productForm(p, done) {
   modal(p.id ? 'Editar producto' : 'Nuevo producto o servicio', `<form id="f"><div class="grid g3">
     <div><label>Código / SKU *</label><input name="code" required value="${esc(p.code)}"></div><div style="grid-column:span 2"><label>Nombre *</label><input name="name" required value="${esc(p.name)}"></div>
     <div><label>Categoría</label><select name="category_id"><option value="">—</option>${cats.map((c) => opt(c.id, c.name, p.category_id)).join('')}</select></div>
-    <div><label>Unidad</label><input name="unit" value="${esc(p.unit)}"></div><div><label>Impuesto</label><select name="tax_id"><option value="">Sin impuesto</option>${taxes.map((t) => opt(t.id, t.name, p.tax_id)).join('')}</select></div>
+    <div><label>Unidad</label><input name="unit" value="${esc(p.unit)}"></div><div><label>Unidad de medida (DIAN)</label><select name="unit_code">${[['94', 'Unidad'], ['MLT', 'Mililitro'], ['GRM', 'Gramo'], ['KGM', 'Kilogramo'], ['LTR', 'Litro']].map((x) => opt(x[0], x[1], p.unit_code || '94')).join('')}</select></div><div><label>Impuesto</label><select name="tax_id"><option value="">Sin impuesto</option>${taxes.map((t) => opt(t.id, t.name, p.tax_id)).join('')}</select></div>
     <div><label>Marca</label><input name="brand" value="${esc(p.brand)}" placeholder="Ej: Loreal, Kerastase…"></div><div><label>Código de barras</label><input name="barcode" value="${esc(p.barcode)}"></div><div><label>Notificación sanitaria (INVIMA)</label><input name="nso" value="${esc(p.nso)}" placeholder="NSOC…"></div>
     <div><label>Precio detal</label><input name="price" type="number" step="any" min="0" value="${p.price}"></div><div><label>Precio mayorista</label><input name="price2" type="number" step="any" min="0" value="${p.price2 || 0}"></div><div><label>Stock mínimo</label><input name="min_stock" type="number" step="any" min="0" value="${p.min_stock}"></div>
     <div><label>Tipo</label><select name="is_service">${opt(0, 'Producto (con inventario)', p.is_service ? 1 : 0)}${opt(1, 'Servicio (sin inventario)', p.is_service ? 1 : 0)}</select></div></div>

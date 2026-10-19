@@ -234,3 +234,53 @@ test('pasarelas: enlace Wompi, webhook firmado, idempotencia y liquidación', as
   assert.equal(D.getDocument(db, v2.id).balance, 0);
   bal(db);
 });
+
+test('facturación electrónica: validaciones, simulador, genérico, webhook y nota crédito', async () => {
+  const crypto = require('crypto');
+  const EI = require('../src/einvoice');
+  const { db, user, cli, mkProd } = fresh();
+  const p = mkProd('F1', 10000);
+  C.adjustStock(db, user, { product_id: p, qty: 10, unit_cost: 4000, kind: 'inicial', date: '2025-08-01' });
+  const v = D.createDocument(db, user, { type: 'venta', date: '2025-08-02', third_id: cli, lines: [{ product_id: p, qty: 2 }] });
+  await assert.rejects(EI.emit(db, user, v.id), /Configure un proveedor/);
+  EI.saveConfig(db, { provider: 'simulador' });
+  await assert.rejects(EI.emit(db, user, v.id), /NIT de la empresa/);                  // faltan datos de la empresa
+  C.setSetting(db, 'company_nit', '900123456-7'); C.setSetting(db, 'company_address', 'Calle 1 # 2-3');
+  await assert.rejects(EI.emit(db, user, v.id), /documento/);                          // el cliente no tiene documento
+  db.prepare("UPDATE thirds SET doc_id='1020304050', email='ana@correo.co' WHERE id=?").run(cli);
+  const pl = EI.buildPayload(db, v.id, 'factura');
+  assert.equal(pl.supplier.dv, '7'); assert.equal(pl.supplier.id_number, '900123456'); assert.equal(pl.totals.payable, 23800); assert.equal(pl.lines[0].tax.amount, 3800);
+  assert.equal(pl.payment_form.code, '2');                                              // crédito
+  const r1 = await EI.emit(db, user, v.id);
+  assert.equal(r1.status, 'aceptada'); assert.match(r1.message, /SIMULACI/); assert.equal(D.getDocument(db, v.id).ref, v.number);
+  await assert.rejects(EI.emit(db, user, v.id), /ya tiene factura/);
+  // anular una venta aceptada genera nota crédito primero
+  const nc = await EI.creditNoteIfNeeded(db, user, v.id, 'Devolución');
+  assert.equal(nc.kind, 'nota_credito'); assert.equal(nc.status, 'aceptada');
+  D.voidDocument(db, user, v.id, '2025-08-03');
+  // genérico con respuesta mapeada, cabecera de autenticación y rechazo 4xx
+  EI.saveConfig(db, { provider: 'generico', url: 'https://api.proveedor.co/facturas', auth: 'header', header: 'X-Api-Key', secret: 'llave123', map_status: 'data.status', map_number: 'data.number', map_cufe: 'data.cufe', webhook_secret: 'wh' });
+  const v2 = D.createDocument(db, user, { type: 'venta', date: '2025-08-04', third_id: cli, lines: [{ product_id: p, qty: 1 }] });
+  let seen;
+  const ok = async (url, o) => { seen = { url, o }; return { ok: true, status: 200, text: async () => JSON.stringify({ data: { status: 'ACCEPTED', number: 'SETP990000001', cufe: 'abc123' } }) }; };
+  const r2 = await EI.emit(db, user, v2.id, 'factura', {}, ok);
+  assert.equal(r2.status, 'aceptada'); assert.equal(r2.cufe, 'abc123'); assert.equal(seen.o.headers['X-Api-Key'], 'llave123'); assert.equal(JSON.parse(seen.o.body).type, 'invoice');
+  assert.ok(!JSON.stringify(db.prepare('SELECT * FROM settings').all()).includes('llave123'), 'secreto cifrado');
+  const v3 = D.createDocument(db, user, { type: 'venta', date: '2025-08-05', third_id: cli, lines: [{ product_id: p, qty: 1 }] });
+  const bad422 = async () => ({ ok: false, status: 422, text: async () => JSON.stringify({ message: 'NIT del adquiriente inválido' }) });
+  const r3 = await EI.emit(db, user, v3.id, 'factura', {}, bad422);
+  assert.equal(r3.status, 'rechazada'); assert.match(r3.message, /inválido/);
+  const down = async () => { throw new Error('ECONNREFUSED'); };
+  const r4 = await EI.emit(db, user, v3.id, 'factura', {}, down);                      // reintento permitido tras rechazo
+  assert.equal(r4.status, 'error');
+  // enviada sin mapa de estado → queda pendiente hasta el webhook firmado
+  EI.saveConfig(db, { provider: 'generico', url: 'https://api.proveedor.co/facturas', map_status: '' });
+  const r5 = await EI.emit(db, user, v3.id, 'factura', {}, async () => ({ ok: true, status: 202, text: async () => '{}' }));
+  assert.equal(r5.status, 'enviada');
+  await assert.rejects(EI.creditNoteIfNeeded(db, user, v3.id, 'x'), /pendiente de confirmación/);
+  const raw = JSON.stringify({ einvoice_id: r5.id, status: 'accepted', number: 'SETP990000002', cufe: 'zzz' });
+  assert.throws(() => EI.handleWebhook(db, { 'x-signature': 'mala' }, raw, JSON.parse(raw)), /Firma inválida/);
+  assert.equal(EI.handleWebhook(db, { 'x-signature': crypto.createHmac('sha256', 'wh').update(raw).digest('hex') }, raw, JSON.parse(raw)).status, 'aceptada');
+  assert.equal(D.getDocument(db, v3.id).ref, 'SETP990000002');
+  bal(db);
+});

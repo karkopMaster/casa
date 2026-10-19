@@ -33,8 +33,15 @@ Para los lotes próximos a vencer el sistema **sugiere el descuento y el precio*
 - Eventos duplicados se ignoran, la firma inválida se rechaza y los pagos sin factura quedan registrados para revisión manual.
 - Requiere que el sistema esté publicado con **https público** para recibir los eventos. PayU, ePayco, Mercado Pago y Bold se pueden conectar con el webhook genérico si permiten firmar eventos, o añadiendo su adaptador.
 
+## Facturación electrónica DIAN (Configuración → Facturación electrónica)
+- La DIAN exige emitir a través de un **proveedor tecnológico autorizado**. El sistema arma el documento normalizado con lo que se exige (NIT + DV, tipo de documento del cliente, IVA por línea, unidad de medida, forma y medio de pago, consumidor final 222222222222), lo valida antes de enviar y guarda estado, número, **CUFE** y enlace de verificación en cada venta.
+- **Nota crédito automática:** al anular una venta con factura aceptada se emite primero la nota crédito; si no se acepta, la venta no se anula. Una factura "enviada" sin confirmar bloquea la anulación.
+- Reintentos tras rechazo o error de conexión, aviso en Inicio de facturas por revisar, envío automático opcional y confirmación asíncrona por webhook firmado (HMAC-SHA256, cabecera `X-Signature`).
+- Modos: **Simulador** (pruebas sin validez fiscal) y **API REST/JSON** configurable (URL, autenticación, rutas JSON de la respuesta). El adaptador nativo de un proveedor concreto (Factus, Alegra, Siigo, Facturatech…) se agrega en `src/einvoice.js` → `ADAPTERS` cuando se cuente con su documentación y credenciales de habilitación: no se incluyen porque no se pudo verificar su formato.
+- Antes de producción: el contador debe habilitar al emisor ante la DIAN con el proveedor, obtener la resolución de numeración y completar datos de la empresa (NIT con DV, dirección, municipio DANE, correo).
+
 ## Lo que NO hace (importante en Colombia)
-- **No emite factura electrónica ante la DIAN.** Para eso hace falta un proveedor tecnológico autorizado (Siigo, Alegra, Factus, etc.) con credenciales propias. Hoy puede guardar el número de la factura electrónica en el campo de referencia y el documento impreso dice "control interno". Integrarlo con un proveedor es el siguiente paso natural.
+- **No hay aún adaptador nativo de un proveedor DIAN concreto** (ver sección anterior); sin proveedor configurado el documento impreso dice "control interno".
 - **Las tarifas de retención y el plan de cuentas son de ejemplo**: confírmelas con su contador (dependen del régimen: ordinario, simple, no responsable de IVA, y del municipio para ICA).
 - No liquida nómina, ni declaraciones, ni cierre contable anual.
 

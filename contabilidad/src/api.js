@@ -6,6 +6,7 @@ const C = require('./core');
 const D = require('./docs');
 const R = require('./reports');
 const G = require('./gateways');
+const EI = require('./einvoice');
 const { HttpError, bad, num, round2 } = C;
 
 const ALL = ['admin', 'contador', 'vendedor'], ACC = ['admin', 'contador'], ADMIN = ['admin'];
@@ -54,6 +55,7 @@ function build(db) {
 
   function publicSettings() {
     const s = C.getSettings(db);
+    for (const k of ['secret_key', 'einv_secret', 'einv_webhook_secret']) delete s[k]; // jamás se envían al navegador
     s.taxes = db.prepare('SELECT * FROM taxes WHERE active=1 ORDER BY id').all();
     s.gateways = db.prepare('SELECT id, name, provider FROM gateways WHERE active=1 ORDER BY id').all();
     s.withholdings = db.prepare('SELECT * FROM withholdings WHERE active=1 ORDER BY applies, id').all();
@@ -65,7 +67,7 @@ function build(db) {
   // ---------- configuración ----------
   on('GET', '/api/settings', ALL, () => publicSettings());
   const SETTING_KEYS = ['company_name', 'company_nit', 'company_address', 'company_phone', 'currency', 'allow_negative_stock', 'lock_date',
-    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'expiry_tiers', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
+    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'expiry_tiers', 'company_dv', 'company_city_code', 'company_email', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
   on('PUT', '/api/settings', ADMIN, ({ body }) => tx(db, () => {
     for (const k of SETTING_KEYS) {
       if (body[k] === undefined) continue;
@@ -155,14 +157,14 @@ function build(db) {
   const thirdArgs = (b) => {
     if (!str(b.name)) throw bad('Indique el nombre');
     const kind = ['cliente', 'proveedor', 'ambos'].includes(b.kind) ? b.kind : 'cliente';
-    return [kind, str(b.doc_id), str(b.name), str(b.company), str(b.email), str(b.phone), str(b.address), b.price_list === 'mayorista' ? 'mayorista' : 'detal'];
+    return [kind, str(b.doc_id), str(b.name), str(b.company), str(b.email), str(b.phone), str(b.address), b.price_list === 'mayorista' ? 'mayorista' : 'detal', EI.DOC_TYPES[b.doc_type] ? b.doc_type : '13', str(b.dv), str(b.city_code)];
   };
   on('POST', '/api/thirds', ALL, ({ body }) => {
-    const r = db.prepare('INSERT INTO thirds(kind,doc_id,name,company,email,phone,address,price_list) VALUES(?,?,?,?,?,?,?,?)').run(...thirdArgs(body));
+    const r = db.prepare('INSERT INTO thirds(kind,doc_id,name,company,email,phone,address,price_list,doc_type,dv,city_code) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(...thirdArgs(body));
     return db.prepare('SELECT * FROM thirds WHERE id=?').get(Number(r.lastInsertRowid));
   });
   on('PUT', '/api/thirds/:id', ALL, ({ params, body }) => {
-    db.prepare('UPDATE thirds SET kind=?,doc_id=?,name=?,company=?,email=?,phone=?,address=?,price_list=?,active=? WHERE id=?')
+    db.prepare('UPDATE thirds SET kind=?,doc_id=?,name=?,company=?,email=?,phone=?,address=?,price_list=?,doc_type=?,dv=?,city_code=?,active=? WHERE id=?')
       .run(...thirdArgs(body), body.active === false || body.active === 0 ? 0 : 1, params.id);
     return db.prepare('SELECT * FROM thirds WHERE id=?').get(params.id);
   });
@@ -203,10 +205,10 @@ function build(db) {
     const barcode = str(b.barcode);
     if (barcode && db.prepare('SELECT 1 FROM products WHERE barcode=? AND id<>?').get(barcode, id || 0)) throw bad('Ya existe un producto con ese código de barras');
     if (num(b.price2) < 0) throw bad('El precio mayorista no puede ser negativo');
-    return [code, name, b.category_id ? num(b.category_id) : null, str(b.unit) || 'und', num(b.price), num(b.min_stock), b.tax_id ? num(b.tax_id) : null, b.is_service ? 1 : 0, str(b.brand), barcode, str(b.nso), num(b.price2)];
+    return [code, name, b.category_id ? num(b.category_id) : null, str(b.unit) || 'und', num(b.price), num(b.min_stock), b.tax_id ? num(b.tax_id) : null, b.is_service ? 1 : 0, str(b.brand), barcode, str(b.nso), num(b.price2), ['94', 'MLT', 'GRM', 'KGM', 'LTR'].includes(b.unit_code) ? b.unit_code : '94'];
   };
   on('POST', '/api/products', ACC, ({ body }) => {
-    const r = db.prepare('INSERT INTO products(code,name,category_id,unit,price,min_stock,tax_id,is_service,brand,barcode,nso,price2) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(...productArgs(body));
+    const r = db.prepare('INSERT INTO products(code,name,category_id,unit,price,min_stock,tax_id,is_service,brand,barcode,nso,price2,unit_code) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').run(...productArgs(body));
     return db.prepare('SELECT * FROM products WHERE id=?').get(Number(r.lastInsertRowid));
   });
   on('PUT', '/api/products/:id', ACC, ({ params, body }) => {
@@ -215,7 +217,7 @@ function build(db) {
     const a = productArgs(body, p.id);
     if (a[7] !== p.is_service && (p.stock !== 0 || db.prepare('SELECT 1 FROM stock_moves WHERE product_id=? LIMIT 1').get(p.id)))
       throw bad('No se puede cambiar entre producto y servicio si ya tiene movimientos de inventario');
-    db.prepare('UPDATE products SET code=?,name=?,category_id=?,unit=?,price=?,min_stock=?,tax_id=?,is_service=?,brand=?,barcode=?,nso=?,price2=?,active=? WHERE id=?')
+    db.prepare('UPDATE products SET code=?,name=?,category_id=?,unit=?,price=?,min_stock=?,tax_id=?,is_service=?,brand=?,barcode=?,nso=?,price2=?,unit_code=?,active=? WHERE id=?')
       .run(...a, body.active === false || body.active === 0 ? 0 : 1, p.id);
     return db.prepare('SELECT * FROM products WHERE id=?').get(p.id);
   });
@@ -278,14 +280,34 @@ function build(db) {
   on('GET', '/api/documents/:id', ALL, ({ params, user }) => {
     const d = D.getDocument(db, params.id);
     if (user.role === 'vendedor' && d.type !== 'venta') throw new HttpError(403, 'Sin permiso');
+    d.einvoices = EI.forDoc(db, d.id);
     return d;
   });
   on('POST', '/api/documents', ALL, ({ body, user }) => {
     docTypeOk(body.type);
     if (user.role === 'vendedor' && body.type !== 'venta') throw new HttpError(403, 'Sin permiso');
-    return D.createDocument(db, user, body);
+    const doc = D.createDocument(db, user, body);
+    // envío automático a la DIAN: si falla, la venta queda registrada y se puede reintentar desde la factura
+    if (doc.type === 'venta' && C.getSetting(db, 'einv_autosend', '0') === '1' && EI.getConfig(db).provider !== 'none') {
+      return EI.emit(db, user, doc.id, 'factura').then(() => D.getDocument(db, doc.id)).catch(() => doc);
+    }
+    return doc;
   });
-  on('POST', '/api/documents/:id/void', ACC, ({ params, body, user }) => D.voidDocument(db, user, params.id, body.date));
+  on('POST', '/api/documents/:id/void', ACC, async ({ params, body, user }) => {
+    const id = num(params.id);
+    if (db.prepare("SELECT 1 FROM documents WHERE id=? AND type='venta' AND status='activo'").get(id)) await EI.creditNoteIfNeeded(db, user, id, body.reason);
+    return D.voidDocument(db, user, id, body.date);
+  });
+  // ---------- facturación electrónica ----------
+  on('GET', '/api/einvoice/config', ADMIN, () => EI.publicConfig(db));
+  on('PUT', '/api/einvoice/config', ADMIN, ({ body }) => EI.saveConfig(db, body));
+  on('GET', '/api/einvoice/pending', ACC, () => EI.listPending(db));
+  on('GET', '/api/documents/:id/einvoice/check', ALL, ({ params }) => {
+    const p = EI.buildPayload(db, num(params.id), 'factura');
+    return { ...EI.readiness(db, num(params.id), p), provider: EI.getConfig(db).provider };
+  });
+  on('POST', '/api/documents/:id/einvoice', ALL, ({ params, user }) => EI.emit(db, user, num(params.id), 'factura'));
+  on('POST', '/api/einvoice/webhook', null, ({ body, raw, headers }) => EI.handleWebhook(db, headers || {}, raw || '', body));
   on('POST', '/api/payments', ALL, ({ body, user }) => {
     if (user.role === 'vendedor') {
       const d = db.prepare('SELECT type FROM documents WHERE id=?').get(num(body.doc_id));
