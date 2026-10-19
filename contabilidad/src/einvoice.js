@@ -4,6 +4,8 @@
 //   simulador → pruebas locales sin validez fiscal · generico → POST JSON a la URL del proveedor/puente configurado.
 // Los adaptadores propios de cada proveedor (Factus, Alegra, Siigo…) se añaden en ADAPTERS cuando se tenga su documentación y credenciales.
 const crypto = require('crypto');
+const dns = require('dns').promises;
+const net = require('net');
 const { tx } = require('./db');
 const C = require('./core');
 const D = require('./docs');
@@ -14,6 +16,34 @@ const DOC_TYPES = { '13': 'Cédula de ciudadanía', '31': 'NIT', '22': 'Cédula 
 const FINAL_CONSUMER = { id_type_code: '13', id_number: '222222222222', dv: null, name: 'Consumidor final', email: null, phone: null, address: null, city_code: null };
 const ACCEPTED = ['accepted', 'aceptada', 'aceptado', 'approved', 'validated', 'validada', 'validado', 'success', 'ok', 'autorizada'];
 const REJECTED = ['rejected', 'rechazada', 'rechazado', 'failed', 'error', 'denegada'];
+// Evita que un negocio use la facturación electrónica para atacar servicios internos del servidor (SSRF).
+function isPrivateIp(ip) {
+  ip = String(ip).toLowerCase();
+  if (ip.startsWith('::ffff:') && net.isIPv4(ip.slice(7))) ip = ip.slice(7);
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0);
+  }
+  if (net.isIPv6(ip)) return ip === '::' || ip === '::1' || /^f[cd]/.test(ip) || /^fe[89ab]/.test(ip);
+  return true;
+}
+function urlProblem(u) { // comprobaciones sin red; devuelve el motivo o null
+  let url; try { url = new URL(u); } catch { return 'URL inválida'; }
+  if (url.protocol !== 'https:') return 'La URL debe usar https';
+  if (url.port && url.port !== '443') return 'Solo se permite el puerto 443';
+  if (url.username || url.password) return 'La URL no puede incluir usuario o clave';
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) return 'Dirección no permitida';
+  if (net.isIP(host) && isPrivateIp(host)) return 'No se permiten direcciones internas';
+  return null;
+}
+async function assertPublicUrl(u) { // además resuelve el dominio y rechaza si apunta a una dirección interna
+  const p = urlProblem(u); if (p) throw bad(p);
+  const host = new URL(u).hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host)) return;
+  let addrs; try { addrs = await dns.lookup(host, { all: true }); } catch { throw bad('No se pudo resolver el dominio del proveedor'); }
+  if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) throw bad('El dominio apunta a una dirección interna: no permitido');
+}
 const dig = (o, path) => (path ? path.split('.').reduce((v, k) => (v == null ? v : v[k]), o) : undefined);
 
 // ---- configuración (el secreto se guarda cifrado) ----
@@ -33,8 +63,8 @@ function publicConfig(db) {
 function saveConfig(db, b) {
   if (!['none', 'simulador', 'generico'].includes(b.provider)) throw bad('Proveedor no soportado');
   if (b.provider === 'generico') {
-    if (!/^https:\/\//.test(String(b.url || ''))) throw bad('La URL del proveedor debe empezar por https://');
-    if (b.url_nc && !/^https:\/\//.test(String(b.url_nc))) throw bad('La URL de notas crédito debe empezar por https://');
+    const p1 = urlProblem(String(b.url || '')) || (b.url_nc ? urlProblem(String(b.url_nc)) : null);
+    if (p1) throw bad('URL del proveedor: ' + p1);
   }
   return tx(db, () => {
     for (const k of KEYS) if (b[k] !== undefined) C.setSetting(db, 'einv_' + k, k === 'autosend' ? (b[k] === true || b[k] === '1' ? '1' : '0') : String(b[k]).trim());
@@ -108,7 +138,10 @@ const ADAPTERS = {
     else if (cfg.auth === 'basic') headers.Authorization = 'Basic ' + Buffer.from(cfg.user + ':' + secret).toString('base64');
     else if (cfg.auth === 'header' && cfg.header && secret) headers[cfg.header] = secret;
     let r;
-    try { r = await fetchFn(url, { method: 'POST', headers, body: JSON.stringify(payload) }); }
+    try {
+      if (fetchFn === fetch) await assertPublicUrl(url); // en producción: nunca hacia direcciones internas
+      r = await fetchFn(url, { method: 'POST', headers, body: JSON.stringify(payload), redirect: 'manual' });
+    }
     catch (e) { return { status: 'error', message: 'No se pudo contactar al proveedor: ' + e.message }; }
     const text = await r.text(), json = (() => { try { return JSON.parse(text); } catch { return null; } })();
     const msg = (json && (json.message || json.error || (json.errors && JSON.stringify(json.errors)))) || text.slice(0, 300);
@@ -178,4 +211,4 @@ function listPending(db) {
 }
 function forDoc(db, docId) { return db.prepare('SELECT id,kind,status,number,cufe,qr_url,pdf_url,provider,message,created_at FROM einvoices WHERE doc_id=? ORDER BY id DESC').all(docId); }
 
-module.exports = { DOC_TYPES, getConfig, publicConfig, saveConfig, buildPayload, readiness, emit, handleWebhook, creditNoteIfNeeded, listPending, forDoc };
+module.exports = { isPrivateIp, urlProblem, assertPublicUrl, DOC_TYPES, getConfig, publicConfig, saveConfig, buildPayload, readiness, emit, handleWebhook, creditNoteIfNeeded, listPending, forDoc };

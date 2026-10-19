@@ -10,6 +10,7 @@ const { open: openTenantDb } = require('./db');
 const C = require('./core');
 const { build } = require('./api');
 const { HttpError, bad } = C;
+const { seedDemo } = require('./demo');
 
 const SLUG = /^[a-z0-9][a-z0-9-]{1,30}$/;
 const RESERVED = new Set(['plataforma', 'api', 'admin', 'www', 'e', 't', 'static', 'public', 'login', 'root', 'soporte', 'platform']);
@@ -21,8 +22,9 @@ CREATE TABLE IF NOT EXISTS platform_users (id INTEGER PRIMARY KEY, username TEXT
 CREATE TABLE IF NOT EXISTS platform_sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS tenants (
   id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'activo',
-  sector TEXT, note TEXT, created_at TEXT, last_login TEXT, admin_user TEXT
-);`;
+  sector TEXT, note TEXT, created_at TEXT, last_login TEXT, admin_user TEXT, is_demo INTEGER NOT NULL DEFAULT 0, expires_at TEXT
+);
+CREATE TABLE IF NOT EXISTS platform_settings (key TEXT PRIMARY KEY, value TEXT);`;
 
 const genPassword = () => { const a = 'abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRTUVWXYZ2346789'; let s = ''; for (const b of crypto.randomBytes(12)) s += a[b % a.length]; return s; };
 
@@ -34,6 +36,11 @@ class Platform {
     this.pdb = new DatabaseSync(path.join(this.dir, 'platform.db'));
     this.pdb.exec('PRAGMA journal_mode=WAL;');
     this.pdb.exec(PLATFORM_SCHEMA);
+    // migración: bases creadas por versiones anteriores
+    const cols = this.pdb.prepare('PRAGMA table_info(tenants)').all().map((c) => c.name);
+    if (!cols.includes('is_demo')) this.pdb.exec('ALTER TABLE tenants ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0');
+    if (!cols.includes('expires_at')) this.pdb.exec('ALTER TABLE tenants ADD COLUMN expires_at TEXT');
+    this.demoHits = new Map();
     this.cache = new Map();
     this.attempts = new Map();
   }
@@ -55,7 +62,7 @@ class Platform {
     let t = this.cache.get(slug);
     if (t) { this.cache.delete(slug); this.cache.set(slug, t); return t; }
     const db = openTenantDb(this.fileFor(slug));
-    t = { db, api: build(db, { multi: true }) };
+    t = { db, api: build(db, { multi: true, demo: !!r.is_demo }) };
     this.cache.set(slug, t);
     while (this.cache.size > MAX_OPEN) { const [k, v] = this.cache.entries().next().value; try { v.db.close(); } catch (_) {} this.cache.delete(k); }
     return t;
@@ -120,6 +127,52 @@ class Platform {
     for (const x of ['', '-wal', '-shm']) if (fs.existsSync(f + x)) fs.renameSync(f + x, path.join(this.dir, 'archivo', `${slug}-${Date.now()}.db${x}`));
     this.pdb.prepare("UPDATE tenants SET status='archivado' WHERE slug=?").run(slug);
   }
+  // ---------- demos ----------
+  getSetting(k, def = '') { const r = this.pdb.prepare('SELECT value FROM platform_settings WHERE key=?').get(k); return r ? r.value : def; }
+  setSetting(k, v) { this.pdb.prepare('INSERT INTO platform_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, String(v)); }
+  publicDemoEnabled() { return this.getSetting('public_demo', '0') === '1'; }
+
+  // Crea un negocio de demostración con datos de ejemplo y fecha de vencimiento (se borra solo al vencer).
+  async createDemo({ name, days = 3, note = null } = {}) {
+    days = Math.min(Math.max(parseInt(days, 10) || 3, 1), 60);
+    let slug; do slug = 'demo-' + crypto.randomBytes(3).toString('hex'); while (this.row(slug));
+    const password = genPassword();
+    const creds = this.createTenant({ name: String(name || '').trim() || 'Demo Distribuidora Capilar', slug, admin_user: 'demo', admin_name: 'Administrador demo', password, sector: 'cabello', profile: 'comercio' });
+    const expires = new Date(Date.now() + days * 86400000).toISOString();
+    const db = openTenantDb(this.fileFor(slug));
+    try {
+      const user = db.prepare("SELECT * FROM users WHERE username='demo'").get();
+      C.setSetting(db, 'is_demo', '1'); C.setSetting(db, 'demo_expires', expires.slice(0, 10));
+      const summary = await seedDemo(db, user, { password });
+      this.pdb.prepare('UPDATE tenants SET is_demo=1, expires_at=?, note=? WHERE slug=?').run(expires, note, slug);
+      return { ...creds, expires_at: expires, users: ['demo', 'vendedor', 'contador'], summary };
+    } catch (e) {
+      db.close(); this.purgeTenantFiles(slug); this.pdb.prepare('DELETE FROM tenants WHERE slug=?').run(slug); throw e;
+    } finally { try { db.close(); } catch (_) {} }
+  }
+  purgeTenantFiles(slug) { const f = this.fileFor(slug); for (const x of ['', '-wal', '-shm']) fs.rmSync(f + x, { force: true }); }
+  purgeExpired() { // solo demos vencidas: se eliminan definitivamente (son descartables)
+    let n = 0;
+    for (const t of this.pdb.prepare("SELECT slug FROM tenants WHERE is_demo=1 AND expires_at<?").all(new Date().toISOString())) {
+      this.closeTenant(t.slug); this.purgeTenantFiles(t.slug); this.pdb.prepare('DELETE FROM tenants WHERE slug=?').run(t.slug); n++;
+    }
+    return n;
+  }
+  // Demo abierta al público desde la pantalla de ingreso (si el dueño la activó): con límites por IP y por cantidad.
+  async startPublicDemo(ip) {
+    if (!this.publicDemoEnabled()) throw new HttpError(403, 'La demo pública no está habilitada');
+    const now = Date.now(), hits = (this.demoHits.get(ip) || []).filter((t) => now - t < 3600000);
+    if (hits.length >= 3) throw new HttpError(429, 'Ya creó varias demos. Intente de nuevo en una hora.');
+    const max = parseInt(this.getSetting('public_demo_max', '25'), 10) || 25;
+    this.purgeExpired();
+    if (this.pdb.prepare("SELECT COUNT(*) n FROM tenants WHERE is_demo=1 AND note='publica'").get().n >= max) throw new HttpError(429, 'Hay muchas demos activas en este momento. Intente más tarde.');
+    hits.push(now); this.demoHits.set(ip, hits);
+    const d = await this.createDemo({ days: 1, note: 'publica', name: 'Demo Distribuidora Capilar' });
+    const t = this.tenant(d.slug);
+    const login = t.api.dispatch('POST', '/api/login', {}, { username: 'demo', password: d.password }, '', ip);
+    return { empresa: d.slug, token: login.token, expires_at: d.expires_at };
+  }
+
   touchLogin(slug) { this.pdb.prepare('UPDATE tenants SET last_login=? WHERE slug=?').run(new Date().toISOString(), slug); }
 
   // ---------- API de la plataforma (/api/plataforma/...) ----------
@@ -128,7 +181,7 @@ class Platform {
     const s = this.pdb.prepare('SELECT * FROM platform_sessions WHERE token=? AND expires>?').get(token, Date.now());
     return s ? this.pdb.prepare('SELECT * FROM platform_users WHERE id=? AND active=1').get(s.user_id) || null : null;
   }
-  handle(method, rest, body, token, ip) {
+  async handle(method, rest, body, token, ip) {
     const P = this.pdb;
     const need = () => { const u = this.authenticate(token); if (!u) throw new HttpError(401, 'Sesión expirada. Ingrese de nuevo.'); return u; };
     const seg = rest.split('/').filter(Boolean);
@@ -168,6 +221,14 @@ class Platform {
       P.prepare('UPDATE platform_users SET salt=?, hash=? WHERE id=?').run(salt, hash, u.id);
       return { ok: true };
     }
+    if (method === 'GET' && key === 'settings') return { public_demo: this.publicDemoEnabled(), public_demo_max: parseInt(this.getSetting('public_demo_max', '25'), 10) };
+    if (method === 'PUT' && key === 'settings') {
+      if (body.public_demo !== undefined) this.setSetting('public_demo', body.public_demo ? '1' : '0');
+      if (body.public_demo_max !== undefined) this.setSetting('public_demo_max', Math.min(Math.max(parseInt(body.public_demo_max, 10) || 25, 1), 200));
+      return { ok: true };
+    }
+    if (method === 'POST' && key === 'tenants/demo') return await this.createDemo({ name: body.name, days: body.days, note: 'manual' });
+    if (method === 'POST' && key === 'purgar-demos') return { purgadas: this.purgeExpired() };
     if (method === 'GET' && key === 'tenants') return this.listTenants();
     if (method === 'POST' && key === 'tenants') return this.createTenant(body);
     if (seg[0] === 'tenants' && seg[1]) {

@@ -45,13 +45,13 @@ function createServer(platform) {
         const query = Object.fromEntries(url.searchParams);
         const ip = (TRUST_PROXY && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress;
 
-        if (url.pathname === '/api/health') return send(res, 200, { ok: true, build: BUILD, platform_setup: platform.isSetup() });
+        if (url.pathname === '/api/health') return send(res, 200, { ok: true, build: BUILD, platform_setup: platform.isSetup(), public_demo: platform.publicDemoEnabled() });
+        if (url.pathname === '/api/demo/start' && req.method === 'POST') return platform.startPublicDemo(ip).then((r) => send(res, 200, r)).catch(fail);
 
         // ---- administración de la plataforma ----
         if (url.pathname.startsWith('/api/plataforma/')) {
-          const out = platform.handle(req.method, url.pathname.slice('/api/plataforma/'.length), body, token, ip);
-          if (out && out.__download) return download(res, out.__download, out.filename);
-          return send(res, 200, out);
+          return platform.handle(req.method, url.pathname.slice('/api/plataforma/'.length), body, token, ip)
+            .then((out) => (out && out.__download ? download(res, out.__download, out.filename) : send(res, 200, out))).catch(fail);
         }
 
         // ---- negocio: se identifica por /api/e/<codigo>/..., cabecera X-Empresa o ?e= ----
@@ -62,6 +62,7 @@ function createServer(platform) {
         const t = platform.tenant(slug);
         if (!t) throw new HttpError(401, 'Empresa, usuario o contraseña incorrectos'); // no revela si la empresa existe
         if (pathname === '/api/backup' && req.method === 'GET') {
+          if (platform.row(slug).is_demo) throw new HttpError(403, 'No disponible en la demo');
           const u = t.api.authenticate(token);
           if (!u || u.role !== 'admin') throw new HttpError(403, 'Solo el administrador puede descargar copias');
           const tmp = path.join(os.tmpdir(), `backup-${crypto.randomBytes(6).toString('hex')}.db`);
@@ -93,6 +94,8 @@ if (require.main === module) {
     process.env.SETUP_TOKEN = crypto.randomBytes(8).toString('hex');
     console.log(`Plataforma sin configurar. Código de instalación de esta sesión: ${process.env.SETUP_TOKEN}`);
   }
+  platform.purgeExpired();
+  setInterval(() => { try { const n = platform.purgeExpired(); if (n) console.log(`Demos vencidas eliminadas: ${n}`); } catch (e) { console.error(e); } }, 3600000).unref();
   createServer(platform).listen(PORT, HOST, () => console.log(`Contabilidad (multi-empresa) lista en http://${HOST}:${PORT}  (datos: ${DATA_DIR})`));
 }
 module.exports = { createServer };

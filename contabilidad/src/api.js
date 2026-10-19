@@ -392,7 +392,16 @@ function build(db, opts = {}) {
     return db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(s.user_id) || null;
   }
 
+  // En una demo no se guardan llaves ni se llama a servicios externos: es un entorno de prueba descartable.
+  const DEMO_BLOCK = [['POST', /^\/api\/gateways$/], ['PUT', /^\/api\/gateways\/\d+$/], ['POST', /^\/api\/documents\/\d+\/pay-link$/], ['POST', /^\/api\/gateways\/\d+\/webhook$/], ['POST', /^\/api\/einvoice\/webhook$/], ['POST', /^\/api\/me\/password$/]];
+  function demoCheck(method, path, body) {
+    if (!opts.demo) return;
+    if (DEMO_BLOCK.some(([m, re]) => m === method && re.test(path))) throw new HttpError(403, 'No disponible en la demo');
+    if (method === 'PUT' && path === '/api/einvoice/config' && !['none', 'simulador'].includes(body.provider)) throw new HttpError(403, 'En la demo solo está disponible el simulador de facturación electrónica');
+    if (method === 'POST' && path === '/api/users' && db.prepare('SELECT COUNT(*) n FROM users').get().n >= 8) throw new HttpError(403, 'La demo admite hasta 8 usuarios');
+  }
   function dispatch(method, path, query, body, token, ip, extra = {}) {
+    demoCheck(method, path, body || {});
     for (const r of routes) {
       if (r.method !== method) continue;
       const m = r.re.exec(path);

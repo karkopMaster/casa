@@ -31,15 +31,21 @@ async function renderPlatform(app) {
   }
   let me; try { me = await papi('GET', 'me'); } catch (_) { return; }
   app.innerHTML = `<div class="shell"><main class="main" style="max-width:1100px;margin:0 auto"><div class="top"><div><h1>Plataforma · negocios</h1><div class="help">Cada negocio tiene su propia base de datos. Usted no ve sus datos contables: solo los administra.</div></div>
-    <div class="actions"><button class="btn" id="new">Nuevo negocio</button><button class="btn sec" id="pw">Mi contraseña</button><button class="btn sec" id="out">Salir</button><a class="btn sec" href="#" id="emp">Ingreso de empresas</a></div></div><div id="list">Cargando…</div></main></div>`;
+    <div class="actions"><button class="btn" id="new">Nuevo negocio</button><button class="btn sec" id="newdemo">🧪 Crear demo</button><button class="btn sec" id="pw">Mi contraseña</button><button class="btn sec" id="out">Salir</button><a class="btn sec" href="#" id="emp">Ingreso de empresas</a></div></div><div class="card" id="pubdemo" style="margin-bottom:12px"></div><div id="list">Cargando…</div></main></div>`;
+  papi('GET', 'settings').then((st) => {
+    $('#pubdemo').innerHTML = `<label style="font-weight:600;color:var(--ink)"><input type="checkbox" id="pd" style="width:auto" ${st.public_demo ? 'checked' : ''}> Permitir que cualquier visitante abra una demo desde la pantalla de ingreso</label>
+      <div class="help">Aparece el botón "Probar una demo". Cada demo dura 24 horas, tiene datos ficticios y se elimina sola; máximo ${st.public_demo_max} a la vez y 3 por hora por visitante. Las demos no permiten guardar llaves ni conectar servicios externos.</div>`;
+    $('#pd').onchange = async (e) => { try { await papi('PUT', 'settings', { public_demo: e.target.checked }); toast(e.target.checked ? 'Demo pública activada' : 'Demo pública desactivada'); } catch (er) { fail(er); e.target.checked = !e.target.checked; } };
+  }).catch(() => {});
   $('#emp').onclick = (e) => { e.preventDefault(); location.hash = ''; };
   $('#out').onclick = async () => { try { await papi('POST', 'logout'); } catch (_) {} PT = null; try { localStorage.removeItem('ptoken'); } catch (_) {} renderPlatform(app); };
   $('#pw').onclick = () => modal('Mi contraseña', `<form id="g"><p><label>Actual</label><input name="current" type="password" required></p><p><label>Nueva (10+)</label><input name="password" type="password" minlength="10" required></p><button class="btn">Guardar</button></form>`, { small: true, onMount: (m, close) => { $('#g', m).onsubmit = async (e) => { e.preventDefault(); try { await papi('POST', 'password', formData(e.target)); toast('Actualizada'); close(); } catch (er) { fail(er); } }; } });
   $('#new').onclick = () => newTenant(load);
+  $('#newdemo').onclick = () => newDemo(load);
   async function load() {
     const rows = await papi('GET', 'tenants');
     $('#list').innerHTML = table([
-      { h: 'Negocio', k: (t) => `<b>${esc(t.name)}</b><div class="help">código: ${esc(t.slug)} · admin: ${esc(t.admin_user || '')}</div>`, raw: 1 },
+      { h: 'Negocio', k: (t) => `<b>${esc(t.name)}</b> ${t.is_demo ? `<span class="tag warn">demo${t.note === 'publica' ? ' pública' : ''} · vence ${esc((t.expires_at || '').slice(0, 10))}</span>` : ''}<div class="help">código: ${esc(t.slug)} · admin: ${esc(t.admin_user || '')}</div>`, raw: 1 },
       { h: 'Estado', k: (t) => `<span class="tag ${t.status === 'activo' ? 'ok' : t.status === 'suspendido' ? 'warn' : 'err'}">${esc(t.status)}</span>`, raw: 1 },
       { h: 'Creado', k: (t) => (t.created_at || '').slice(0, 10) }, { h: 'Último ingreso', k: (t) => (t.last_login ? t.last_login.replace('T', ' ').slice(0, 16) : '—') }, { h: 'Datos', k: (t) => t.size_kb + ' KB', n: 1 },
       { h: '', raw: 1, k: (t) => (t.status === 'archivado' ? '' : `<div class="actions"><button class="btn sm sec" data-a="link" data-s="${esc(t.slug)}">Enlace</button><button class="btn sm sec" data-a="estado" data-s="${esc(t.slug)}" data-v="${t.status === 'activo' ? 'suspendido' : 'activo'}">${t.status === 'activo' ? 'Suspender' : 'Activar'}</button><button class="btn sm sec" data-a="reset" data-s="${esc(t.slug)}">Clave admin</button><button class="btn sm sec" data-a="bk" data-s="${esc(t.slug)}">Copia</button><button class="btn sm danger" data-a="arch" data-s="${esc(t.slug)}">Archivar</button></div>`) },
@@ -79,4 +85,21 @@ function newTenant(done) {
     <div style="grid-column:1/-1"><label>Nota interna (solo usted la ve)</label><input name="note"></div></div><p><button class="btn">Crear negocio</button></p></form>`, { onMount: (m, close) => {
     $('#f', m).onsubmit = async (e) => { e.preventDefault(); try { const r = await papi('POST', 'tenants', formData(e.target)); close(); credentials(r); done(); } catch (er) { fail(er); } };
   } });
+}
+
+function newDemo(done) {
+  modal('Crear demo con datos de ejemplo', `<form id="f"><p class="help">Crea un negocio de productos para el cabello con productos, lotes por vencer, clientes, ventas, cobros, gastos y facturas electrónicas de prueba. Se elimina solo al vencer.</p>
+    <div class="grid g2"><div><label>Nombre (opcional)</label><input name="name" placeholder="Demo para Ana"></div><div><label>Vigencia</label><select name="days"><option value="3">3 días</option><option value="7">7 días</option><option value="14">14 días</option><option value="30">30 días</option></select></div></div>
+    <p><button class="btn" id="go">Crear demo</button></p></form>`, { small: true, onMount: (m, close) => {
+    $('#f', m).onsubmit = async (e) => {
+      e.preventDefault(); const btn = $('#go', m); btn.disabled = true; btn.textContent = 'Generando datos…';
+      try { const r = await papi('POST', 'tenants/demo', formData(e.target)); close(); demoCredentials(r); done(); } catch (er) { fail(er); btn.disabled = false; btn.textContent = 'Crear demo'; }
+    };
+  } });
+}
+function demoCredentials(d) {
+  const url = `${location.origin}/?e=${d.slug}`;
+  const txt = `DEMO (datos ficticios, vence el ${d.expires_at.slice(0, 10)})\nIngreso: ${url}\nCódigo de empresa: ${d.slug}\nUsuarios: demo (administrador), vendedor, contador\nContraseña (la misma para los tres): ${d.password}`;
+  const s = d.summary;
+  modal('Demo lista', `<p class="help">${s.products} productos · ${s.clients} clientes · ${s.sales} ventas · ${s.purchases} compras · ${s.expenses} gastos · ${s.einvoices} facturas electrónicas de prueba.</p><pre style="background:var(--bg);padding:12px;border-radius:8px;white-space:pre-wrap;user-select:all">${esc(txt)}</pre><button class="btn" id="cp">Copiar</button>`, { small: true, onMount: (m) => { $('#cp', m).onclick = () => copyText(txt); } });
 }

@@ -74,3 +74,10 @@ Copia diaria opcional: `node src/backup.js ~/backups-contabilidad 30` (copia con
 - Un negocio suspendido no puede entrar; "archivar" mueve su base a `data/archivo/` (no se borra).
 - `node src/backup.js <carpeta> 30` respalda la plataforma y cada negocio por separado.
 - Los avisos de pasarelas y facturación electrónica usan la URL con el código: `/api/e/<codigo>/gateways/<id>/webhook` y `/api/e/<codigo>/einvoice/webhook`.
+
+## Demos con datos de ejemplo
+- En el panel de la plataforma, **🧪 Crear demo** genera en menos de un segundo un negocio ficticio de productos para el cabello: ~30 productos con marca, código de barras y lotes (algunos por vencer y uno vencido), 8 clientes (detal y mayoristas), 3 proveedores, ~200 ventas de 45 días con cobros por caja, bancos, Nequi y datáfono, cartera vencida, cuentas por pagar, gastos, una venta anulada y facturas electrónicas de prueba (simulador). Usuarios `demo` (administrador), `vendedor` y `contador`, con la misma contraseña generada.
+- Cada demo tiene vigencia (1 a 60 días) y **se elimina sola** al vencer. Muestra un aviso permanente de "demostración".
+- **Demo pública** (opcional, apagada por defecto): al activarla aparece en el ingreso el botón "Probar una demo con datos de ejemplo". Dura 24 h, máximo 25 simultáneas y 3 por hora por visitante.
+- Las demos no permiten guardar llaves de pasarelas, conectar un proveedor real de facturación electrónica, cambiar la contraseña ni descargar copias.
+- Seguridad: la facturación electrónica por API solo acepta URLs https públicas (puerto 443, sin IPs internas ni redirecciones), para que ningún negocio pueda usarla contra servicios internos del servidor.

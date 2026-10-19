@@ -102,7 +102,7 @@ async function render() {
   app.innerHTML = `<div class="shell"><nav class="side" id="side"><div class="brand">${esc(S.cfg.company_name)}</div>
     ${nav.map((n) => `<a href="#${n[0]}" class="${n[0] === cur[0] ? 'on' : ''}">${esc(n[1])}</a>`).join('')}
     <div class="who">${esc(S.user.name)}<br><span class="mut">${esc(S.user.role)}</span><br><a href="#" id="pw" style="padding:4px 0">Cambiar contraseña</a><a href="#" id="out" style="padding:4px 0">Cerrar sesión</a></div></nav>
-    <main class="main"><div class="top"><div style="display:flex;gap:10px;align-items:center"><button class="btn sec burger" id="burger" aria-label="Menú">☰</button><h1 id="title">${esc(cur[1])}</h1></div><div id="topbtn" class="actions"></div></div><div id="view">Cargando…</div></main></div>`;
+    <main class="main">${S.cfg.is_demo === '1' ? `<div class="card" style="background:var(--warn);color:#fff;border:0;padding:10px 14px;font-weight:600">🧪 DEMOSTRACIÓN · todos los datos son ficticios. No ingrese información real. Esta demo se elimina el ${esc(S.cfg.demo_expires || '')}.</div>` : ''}<div class="top"><div style="display:flex;gap:10px;align-items:center"><button class="btn sec burger" id="burger" aria-label="Menú">☰</button><h1 id="title">${esc(cur[1])}</h1></div><div id="topbtn" class="actions"></div></div><div id="view">Cargando…</div></main></div>`;
   $('#burger').onclick = () => $('#side').classList.toggle('open');
   $$('#side a[href^="#"]').forEach((a) => a.addEventListener('click', () => $('#side').classList.remove('open')));
   $('#out').onclick = async (e) => { e.preventDefault(); try { await api('POST', '/logout'); } catch (_) {} S.token = null; try { localStorage.removeItem('token'); } catch (_) {} render(); };
@@ -116,7 +116,21 @@ function renderLogin(app) {
   <p><label>Código de empresa</label><input name="empresa" required autocapitalize="none" autocomplete="organization" value="${esc(S.empresa)}" placeholder="ej: mi-negocio"></p>
   <p><label>Usuario</label><input name="username" required ${S.empresa ? 'autofocus' : ''} autocomplete="username"></p>
   <p><label>Contraseña</label><input name="password" type="password" required autocomplete="current-password"></p><p><button class="btn" style="width:100%">Entrar</button></p>
+  <div id="demoBox"></div>
   <p class="help" style="text-align:center"><a href="#plataforma">Administrador de la plataforma</a></p></form></div>`;
+  fetch('/api/health').then((r) => r.json()).then((h) => {
+    if (!h.public_demo || !$('#demoBox')) return;
+    $('#demoBox').innerHTML = '<p style="text-align:center;margin:0 0 6px"><button type="button" class="btn sec" id="demoBtn" style="width:100%">🧪 Probar una demo con datos de ejemplo</button></p><p class="help" style="text-align:center">Sin registro. Los datos son ficticios y se borran en 24 horas.</p>';
+    $('#demoBtn').onclick = async () => {
+      const btn = $('#demoBtn'); btn.disabled = true; btn.textContent = 'Preparando su demo…';
+      try {
+        const r = await fetch('/api/demo/start', { method: 'POST' }); const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'No se pudo crear la demo');
+        S.empresa = j.empresa; S.token = j.token; try { localStorage.setItem('token', j.token); localStorage.setItem('empresa', j.empresa); } catch (_) {}
+        location.hash = ''; render();
+      } catch (er) { fail(er); btn.disabled = false; btn.textContent = '🧪 Probar una demo con datos de ejemplo'; }
+    };
+  }).catch(() => {});
   $('#f').onsubmit = async (e) => {
     e.preventDefault();
     const f = formData(e.target); S.empresa = f.empresa.trim().toLowerCase();

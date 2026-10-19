@@ -305,21 +305,21 @@ test('SETUP_TOKEN: sin el código nadie crea el primer administrador', () => {
   } finally { delete process.env.SETUP_TOKEN; }
 });
 
-test('multi-empresa: bases separadas, aislamiento total y control de la plataforma', () => {
+test('multi-empresa: bases separadas, aislamiento total y control de la plataforma', async () => {
   const fs = require('fs'), os = require('os'), path = require('path');
   const { Platform } = require('../src/platform');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plat-'));
   const P = new Platform(dir);
   process.env.SETUP_TOKEN = 'tok-plat-123';
   try {
-    assert.throws(() => P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'mal' }, '', 'x'), /incorrecto/);
-    P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'tok-plat-123' }, '', 'x');
-    assert.throws(() => P.handle('GET', 'tenants', {}, '', 'x'), /Sesión expirada/);
-    const { token } = P.handle('POST', 'login', { username: 'dueno', password: 'una-clave-larga-1' }, '', 'x');
-    const a = P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token);
-    const b = P.handle('POST', 'tenants', { name: 'Distribuidora Beto', admin_user: 'beto' }, token);
+    await assert.rejects(() => P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'mal' }, '', 'x'), /incorrecto/);
+    await P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'tok-plat-123' }, '', 'x');
+    await assert.rejects(() => P.handle('GET', 'tenants', {}, '', 'x'), /Sesión expirada/);
+    const { token } = await P.handle('POST', 'login', { username: 'dueno', password: 'una-clave-larga-1' }, '', 'x');
+    const a = await P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token);
+    const b = await P.handle('POST', 'tenants', { name: 'Distribuidora Beto', admin_user: 'beto' }, token);
     assert.equal(a.slug, 'peluqueria-ana'); assert.ok(a.password.length >= 10);
-    assert.throws(() => P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token), /ya existe/);
+    await assert.rejects(() => P.handle('POST', 'tenants', { name: 'Peluquería Ana' }, token), /ya existe/);
     for (const mal of ['../x', 'a/b', 'API', 'plataforma', 'A B', '']) assert.equal(P.validSlug(mal), false, mal);
     assert.throws(() => P.fileFor('../platform'), /inválido/);
     assert.ok(fs.existsSync(path.join(dir, 'tenants', 'peluqueria-ana.db')) && fs.existsSync(path.join(dir, 'tenants', 'distribuidora-beto.db')));
@@ -337,19 +337,106 @@ test('multi-empresa: bases separadas, aislamiento total y control de la platafor
     // el negocio no puede crear empresas ni reconfigurarse
     assert.throws(() => ta.api.dispatch('POST', '/api/setup', {}, { company_name: 'x' }, '', 'x'), /plataforma/);
     // suspender bloquea el acceso; reactivar lo devuelve
-    P.handle('POST', `tenants/${a.slug}/estado`, { status: 'suspendido' }, token);
+    await P.handle('POST', `tenants/${a.slug}/estado`, { status: 'suspendido' }, token);
     assert.throws(() => P.tenant(a.slug), /suspendida/);
-    P.handle('POST', `tenants/${a.slug}/estado`, { status: 'activo' }, token);
+    await P.handle('POST', `tenants/${a.slug}/estado`, { status: 'activo' }, token);
     assert.ok(P.tenant(a.slug));
     // restablecer clave del admin de un negocio
-    const nueva = P.handle('POST', `tenants/${a.slug}/reset-admin`, {}, token);
+    const nueva = await P.handle('POST', `tenants/${a.slug}/reset-admin`, {}, token);
     P.tenant(a.slug).api.dispatch('POST', '/api/login', {}, { username: nueva.username, password: nueva.password }, '', 'x');
     assert.throws(() => P.tenant(a.slug).api.dispatch('GET', '/api/me', {}, {}, la.token, 'x'), /Sesión expirada/); // sesiones anteriores cerradas
     // copia de un negocio y archivado (no borra el archivo)
-    assert.ok(P.handle('GET', `tenants/${b.slug}/backup`, {}, token).__download.length > 1000);
-    assert.throws(() => P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: 'otro' }, token), /Escriba el código/);
-    P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: b.slug }, token);
+    assert.ok((await P.handle('GET', `tenants/${b.slug}/backup`, {}, token)).__download.length > 1000);
+    await assert.rejects(() => P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: 'otro' }, token), /Escriba el código/);
+    await P.handle('POST', `tenants/${b.slug}/archivar`, { confirm: b.slug }, token);
     assert.equal(P.tenant(b.slug), null);
     assert.equal(fs.readdirSync(path.join(dir, 'archivo')).filter((f) => f.endsWith('.db')).length, 1);
   } finally { delete process.env.SETUP_TOKEN; }
+});
+
+test('demo: datos de ejemplo completos, con contabilidad que cuadra', async () => {
+  const { seedDemo } = require('../src/demo');
+  const db = open(':memory:');
+  C.setupCompany(db, { company_name: 'Demo', username: 'demo', password: 'demo-clave-1', sector: 'cabello' });
+  const user = db.prepare('SELECT * FROM users').get();
+  const t0 = Date.now();
+  const sm = await seedDemo(db, user, { password: 'demo-clave-1' });
+  console.log('   demo generada en', Date.now() - t0, 'ms', JSON.stringify(sm));
+  assert.ok(sm.products >= 29 && sm.clients === 8 && sm.sales >= 100 && sm.purchases === 5 && sm.expenses === 15 && sm.einvoices > 80);
+  bal(db);
+  const lots = R.lotsReport(db, { days: 90 });
+  assert.ok(lots.expired_count >= 1, 'hay un lote vencido');
+  assert.ok(lots.rows.filter((r) => r.suggest && r.suggest.pct > 0).length >= 3, 'hay descuentos sugeridos');
+  const ar = R.agingReport(db, { type: 'venta' }), ap = R.agingReport(db, { type: 'compra' });
+  assert.ok(ar.totals.total > 0 && ar.totals.d1_30 + ar.totals.d31_60 > 0, 'hay cartera vencida');
+  assert.ok(ap.totals.total > 0, 'hay cuentas por pagar');
+  for (const a of ['110505', '111005']) assert.ok(R.ledger(db, { account: a }).closing > 0, 'saldo positivo en ' + a);
+  assert.ok(R.incomeStatement(db, {}).utilidad_neta !== 0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM documents WHERE status='anulado'").get().n, 1);
+  assert.ok(db.prepare("SELECT COUNT(*) n FROM einvoices WHERE status='aceptada'").get().n === sm.einvoices);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM users").get().n, 3);
+  const dash = R.dashboard(db);
+  assert.ok(dash.sales_month > 0 && dash.purchases_month > 0 && dash.profit_month > 0, 'el mes actual muestra ventas, compras y utilidad positiva');
+  for (const a of ['111010', '111015']) assert.ok(R.ledger(db, { account: a }).closing > 0, 'hay movimiento en ' + a);
+  const ym = new Date().toISOString().slice(0, 7);
+  assert.ok(R.incomeStatement(db, { from: ym + '-01', to: ym + '-31' }).utilidad_neta > 0);
+});
+
+test('seguridad: la facturación electrónica no puede apuntar a direcciones internas (SSRF)', async () => {
+  const EI = require('../src/einvoice');
+  for (const ip of ['127.0.0.1', '10.0.0.5', '172.20.1.1', '192.168.1.10', '169.254.169.254', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '0.0.0.0']) assert.equal(EI.isPrivateIp(ip), true, ip);
+  for (const ip of ['8.8.8.8', '148.113.203.154', '2606:4700::1111']) assert.equal(EI.isPrivateIp(ip), false, ip);
+  for (const u of ['http://api.x.co/f', 'https://localhost/f', 'https://127.0.0.1/f', 'https://[::1]/f', 'https://api.x.co:4000/f', 'https://user:pw@api.x.co/f', 'https://servicio.internal/f', 'https://169.254.169.254/latest/meta-data'])
+    assert.ok(EI.urlProblem(u), u);
+  assert.equal(EI.urlProblem('https://api.proveedor.co/v1/facturas'), null);
+  const { db } = fresh();
+  assert.throws(() => EI.saveConfig(db, { provider: 'generico', url: 'https://127.0.0.1:3000/x' }), /URL del proveedor/);
+  assert.throws(() => EI.saveConfig(db, { provider: 'generico', url: 'https://api.proveedor.co/x', url_nc: 'https://10.0.0.1/x' }), /URL del proveedor/);
+  await assert.rejects(EI.assertPublicUrl('https://localhost/x'), /no permitida/i);
+});
+
+test('demos: creación automática, restricciones, vencimiento, demo pública con límites y migración', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { Platform } = require('../src/platform');
+  const { DatabaseSync } = require('node:sqlite');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plat-demo-'));
+  // base de plataforma "antigua" (sin columnas de demo) para comprobar la migración
+  const old = new DatabaseSync(path.join(dir, 'platform.db'));
+  old.exec("CREATE TABLE tenants (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'activo', sector TEXT, note TEXT, created_at TEXT, last_login TEXT, admin_user TEXT)");
+  old.close();
+  const P = new Platform(dir);
+  assert.ok(P.pdb.prepare('PRAGMA table_info(tenants)').all().some((c) => c.name === 'is_demo'));
+  // demo manual
+  const d = await P.createDemo({ days: 2, note: 'manual' });
+  assert.match(d.slug, /^demo-[0-9a-f]{6}$/); assert.ok(d.summary.sales >= 50 && d.password.length >= 10);
+  const t = P.tenant(d.slug);
+  const lg = t.api.dispatch('POST', '/api/login', {}, { username: 'vendedor', password: d.password }, '', 'x');
+  assert.equal(lg.user.role, 'vendedor');
+  const adm = t.api.dispatch('POST', '/api/login', {}, { username: 'demo', password: d.password }, '', 'x');
+  assert.equal(t.api.dispatch('GET', '/api/me', {}, {}, adm.token, 'x').settings.is_demo, '1');
+  assert.ok(!JSON.stringify(t.api.dispatch('GET', '/api/me', {}, {}, adm.token, 'x').settings).includes('secret_key'));
+  // restricciones de demo
+  assert.throws(() => t.api.dispatch('POST', '/api/gateways', {}, { provider: 'wompi', name: 'x', private_key: 'prv', account_code: '111015' }, adm.token, 'x'), /No disponible en la demo/);
+  assert.throws(() => t.api.dispatch('PUT', '/api/einvoice/config', {}, { provider: 'generico', url: 'https://api.x.co/f' }, adm.token, 'x'), /simulador/);
+  assert.throws(() => t.api.dispatch('POST', '/api/me/password', {}, { current: 'x', password: 'otra-clave-1' }, adm.token, 'x'), /demo/);
+  // vencimiento: al pasar la fecha se elimina por completo; un negocio real no se toca
+  const real = await P.handle('GET', 'status', {}, '', 'x') && P.createTenant({ name: 'Negocio Real' });
+  assert.equal(P.purgeExpired(), 0);
+  P.pdb.prepare("UPDATE tenants SET expires_at='2000-01-01T00:00:00.000Z' WHERE slug=?").run(d.slug);
+  assert.equal(P.purgeExpired(), 1);
+  assert.equal(P.row(d.slug), undefined); assert.ok(!fs.existsSync(path.join(dir, 'tenants', d.slug + '.db')));
+  assert.ok(P.row(real.slug) && fs.existsSync(path.join(dir, 'tenants', real.slug + '.db')));
+  // demo pública: apagada por defecto, con tope por IP
+  await assert.rejects(P.startPublicDemo('1.1.1.1'), /no está habilitada/);
+  P.setSetting('public_demo', '1');
+  const p1 = await P.startPublicDemo('1.1.1.1');
+  assert.ok(p1.token && p1.empresa.startsWith('demo-'));
+  assert.equal(P.tenant(p1.empresa).api.dispatch('GET', '/api/me', {}, {}, p1.token, 'x').user.username, 'demo');
+  await P.startPublicDemo('1.1.1.1'); await P.startPublicDemo('1.1.1.1');
+  await assert.rejects(P.startPublicDemo('1.1.1.1'), /varias demos/);
+  P.setSetting('public_demo_max', '3');
+  await assert.rejects(P.startPublicDemo('2.2.2.2'), /muchas demos/);
+  // las demos públicas no ven a los demás negocios
+  const other = P.tenant(real.slug).api.dispatch('POST', '/api/login', {}, { username: real.admin_user, password: real.password }, '', 'x');
+  assert.throws(() => P.tenant(p1.empresa).api.dispatch('GET', '/api/me', {}, {}, other.token, 'x'), /Sesión expirada/);
 });
