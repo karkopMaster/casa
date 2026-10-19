@@ -90,3 +90,8 @@ La plataforma abre por defecto en **modo fácil**: pantalla de botones grandes y
 - **Gasto:** categorías con botón (arriendo, luz y agua, internet, nómina, transporte, publicidad, otro) → valor → cómo pagó → confirmar.
 - El **vendedor** solo ve Vender, Cobrar, Mis clientes y Mis productos.
 - "Ver todas las opciones" abre el modo completo (contabilidad, informes, configuración); en el modo completo, "🔠 Modo fácil" vuelve. La pantalla por defecto de cada negocio se cambia en Configuración → Empresa.
+
+## Panel de la plataforma: editar, eliminar y reenviar accesos
+- **✏️ Editar:** nombre, NIT, dirección, teléfono y nota interna del negocio (el nombre se actualiza también dentro del negocio); en una demo, ampliar la vigencia. El código de empresa no cambia, porque es con lo que el negocio entra.
+- **📋 Accesos:** las contraseñas se guardan cifradas de una vía y no pueden "verse" de nuevo, así que este botón genera una **contraseña nueva** (en una demo, para los tres usuarios) y deja los datos listos para copiar: **Copiar datos** o **Copiar mensaje listo para WhatsApp**. Cierra las sesiones abiertas de ese usuario.
+- **🗑 Eliminar:** exige escribir el código del negocio. Los datos pasan a la **papelera durante 30 días** (se puede restaurar con todo, incluido el nombre editado); el código queda libre. Desde la papelera también se puede **borrar para siempre** (con confirmación) y se vacía sola a los 30 días.

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'activo',
   sector TEXT, note TEXT, created_at TEXT, last_login TEXT, admin_user TEXT, is_demo INTEGER NOT NULL DEFAULT 0, expires_at TEXT
 );
+CREATE TABLE IF NOT EXISTS papelera (id INTEGER PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, file TEXT NOT NULL, snapshot TEXT, deleted_at TEXT, expires_at TEXT);
 CREATE TABLE IF NOT EXISTS platform_settings (key TEXT PRIMARY KEY, value TEXT);`;
 
 const genPassword = () => { const a = 'abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRTUVWXYZ2346789'; let s = ''; for (const b of crypto.randomBytes(12)) s += a[b % a.length]; return s; };
@@ -106,10 +107,11 @@ class Platform {
       const u = db.prepare('SELECT * FROM users WHERE username=?').get(String(username || r.admin_user).toLowerCase());
       if (!u) throw bad('Usuario no encontrado en esa empresa');
       const pass = String(password || '').trim() || genPassword();
+      // en una demo los tres usuarios (demo, vendedor, contador) comparten contraseña: se restablecen juntos
+      const targets = r.is_demo ? db.prepare("SELECT * FROM users WHERE username IN ('demo','vendedor','contador')").all() : [u];
       const { salt, hash } = C.hashPassword(pass);
-      db.prepare('UPDATE users SET salt=?, hash=?, active=1 WHERE id=?').run(salt, hash, u.id);
-      db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
-      return { username: u.username, password: pass };
+      for (const t of targets) { db.prepare('UPDATE users SET salt=?, hash=?, active=1 WHERE id=?').run(salt, hash, t.id); db.prepare('DELETE FROM sessions WHERE user_id=?').run(t.id); }
+      return { username: u.username, password: pass, users: targets.map((t) => t.username) };
     } finally { db.close(); }
   }
   backupTenant(slug) {
@@ -156,7 +158,7 @@ class Platform {
     for (const t of this.pdb.prepare("SELECT slug FROM tenants WHERE is_demo=1 AND expires_at<?").all(new Date().toISOString())) {
       this.closeTenant(t.slug); this.purgeTenantFiles(t.slug); this.pdb.prepare('DELETE FROM tenants WHERE slug=?').run(t.slug); n++;
     }
-    return n;
+    return n + this.purgeTrashExpired();
   }
   // Demo abierta al público desde la pantalla de ingreso (si el dueño la activó): con límites por IP y por cantidad.
   async startPublicDemo(ip) {
@@ -172,6 +174,68 @@ class Platform {
     const login = t.api.dispatch('POST', '/api/login', {}, { username: 'demo', password: d.password }, '', ip);
     return { empresa: d.slug, token: login.token, expires_at: d.expires_at };
   }
+
+  // ---------- editar / eliminar ----------
+  detail(slug) {
+    const r = this.row(slug);
+    if (!r || r.status === 'archivado') throw new HttpError(404, 'Empresa no encontrada');
+    const db = openTenantDb(this.fileFor(slug)); // solo se leen los datos de contacto de la empresa, nada contable
+    try { const g = (k) => C.getSetting(db, k, ''); return { slug, name: r.name, note: r.note, status: r.status, is_demo: r.is_demo, expires_at: r.expires_at, admin_user: r.admin_user, nit: g('company_nit'), address: g('company_address'), phone: g('company_phone') }; }
+    finally { db.close(); }
+  }
+  updateTenant(slug, b) {
+    const r = this.row(slug);
+    if (!r || r.status === 'archivado') throw new HttpError(404, 'Empresa no encontrada');
+    const name = String(b.name === undefined ? r.name : b.name).trim();
+    if (!name) throw bad('El nombre no puede quedar vacío');
+    this.closeTenant(slug); // se cierra la conexión en caché mientras se edita
+    const db = openTenantDb(this.fileFor(slug));
+    try {
+      C.setSetting(db, 'company_name', name);
+      for (const [k, f] of [['company_nit', 'nit'], ['company_address', 'address'], ['company_phone', 'phone']]) if (b[f] !== undefined) C.setSetting(db, k, String(b[f]).trim());
+      let expires = r.expires_at;
+      if (r.is_demo && b.extend_days) {
+        const d = Math.min(Math.max(parseInt(b.extend_days, 10) || 0, 0), 60);
+        if (d) { expires = new Date(Math.max(Date.now(), Date.parse(r.expires_at || 0) || 0) + d * 86400000).toISOString(); C.setSetting(db, 'demo_expires', expires.slice(0, 10)); }
+      }
+      this.pdb.prepare('UPDATE tenants SET name=?, note=?, expires_at=? WHERE slug=?').run(name, b.note === undefined ? r.note : (String(b.note).trim() || null), expires, slug);
+    } finally { db.close(); }
+    return this.detail(slug);
+  }
+  // Eliminar = papelera: se saca de servicio, se libera el código y los datos se conservan 30 días (restaurables).
+  deleteTenant(slug) {
+    const r = this.row(slug);
+    if (!r) throw new HttpError(404, 'Empresa no encontrada');
+    this.closeTenant(slug);
+    const f = this.fileFor(slug), dest = path.join(this.dir, 'archivo', `${slug}-${Date.now()}.db`);
+    if (r.status !== 'archivado' && fs.existsSync(f)) {
+      for (const x of ['', '-wal', '-shm']) if (fs.existsSync(f + x)) fs.renameSync(f + x, dest + x);
+      this.pdb.prepare('INSERT INTO papelera(slug,name,file,snapshot,deleted_at,expires_at) VALUES(?,?,?,?,?,?)')
+        .run(slug, r.name, path.basename(dest), JSON.stringify(r), new Date().toISOString(), new Date(Date.now() + 30 * 86400000).toISOString());
+    }
+    this.pdb.prepare('DELETE FROM tenants WHERE slug=?').run(slug);
+  }
+  listTrash() { return this.pdb.prepare('SELECT id, slug, name, deleted_at, expires_at FROM papelera ORDER BY id DESC').all(); }
+  restoreTrash(id) {
+    const t = this.pdb.prepare('SELECT * FROM papelera WHERE id=?').get(id);
+    if (!t) throw new HttpError(404, 'No está en la papelera');
+    if (this.row(t.slug)) throw bad(`El código "${t.slug}" ya lo usa otra empresa: no se puede restaurar`);
+    const src = path.join(this.dir, 'archivo', t.file), dest = this.fileFor(t.slug);
+    if (!fs.existsSync(src)) throw bad('Los datos ya no están en la papelera');
+    for (const x of ['', '-wal', '-shm']) if (fs.existsSync(src + x)) fs.renameSync(src + x, dest + x);
+    const o = JSON.parse(t.snapshot || '{}');
+    this.pdb.prepare('INSERT INTO tenants(slug,name,status,sector,note,created_at,last_login,admin_user,is_demo,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .run(t.slug, o.name || t.name, 'activo', o.sector || null, o.note || null, o.created_at || new Date().toISOString(), o.last_login || null, o.admin_user || null, o.is_demo || 0, o.expires_at || null);
+    this.pdb.prepare('DELETE FROM papelera WHERE id=?').run(id);
+    return { slug: t.slug };
+  }
+  purgeTrash(id) { // borrado definitivo
+    const t = this.pdb.prepare('SELECT * FROM papelera WHERE id=?').get(id);
+    if (!t) throw new HttpError(404, 'No está en la papelera');
+    for (const x of ['', '-wal', '-shm']) fs.rmSync(path.join(this.dir, 'archivo', t.file + x), { force: true });
+    this.pdb.prepare('DELETE FROM papelera WHERE id=?').run(id);
+  }
+  purgeTrashExpired() { let n = 0; for (const t of this.pdb.prepare('SELECT id FROM papelera WHERE expires_at<?').all(new Date().toISOString())) { this.purgeTrash(t.id); n++; } return n; }
 
   touchLogin(slug) { this.pdb.prepare('UPDATE tenants SET last_login=? WHERE slug=?').run(new Date().toISOString(), slug); }
 
@@ -228,6 +292,14 @@ class Platform {
       return { ok: true };
     }
     if (method === 'POST' && key === 'tenants/demo') return await this.createDemo({ name: body.name, days: body.days, note: 'manual' });
+    if (method === 'GET' && key === 'papelera') return this.listTrash();
+    if (seg[0] === 'papelera' && seg[1] && method === 'POST' && seg[2] === 'restaurar') return this.restoreTrash(parseInt(seg[1], 10));
+    if (seg[0] === 'papelera' && seg[1] && method === 'POST' && seg[2] === 'borrar') {
+      const t = P.prepare('SELECT slug FROM papelera WHERE id=?').get(parseInt(seg[1], 10));
+      if (!t) throw new HttpError(404, 'No está en la papelera');
+      if (body.confirm !== t.slug) throw bad('Escriba el código de la empresa para confirmar');
+      this.purgeTrash(parseInt(seg[1], 10)); return { ok: true };
+    }
     if (method === 'POST' && key === 'purgar-demos') return { purgadas: this.purgeExpired() };
     if (method === 'GET' && key === 'tenants') return this.listTenants();
     if (method === 'POST' && key === 'tenants') return this.createTenant(body);
@@ -235,9 +307,10 @@ class Platform {
       const slug = seg[1];
       if (method === 'POST' && seg[2] === 'estado') { if (!['activo', 'suspendido'].includes(body.status)) throw bad('Estado inválido'); this.setStatus(slug, body.status); return { ok: true }; }
       if (method === 'POST' && seg[2] === 'reset-admin') return this.resetAdmin(slug, body.username, body.password);
-      if (method === 'POST' && seg[2] === 'archivar') { if (body.confirm !== slug) throw bad('Escriba el código de la empresa para confirmar'); this.archiveTenant(slug); return { ok: true }; }
+      if (method === 'POST' && (seg[2] === 'eliminar' || seg[2] === 'archivar')) { if (body.confirm !== slug) throw bad('Escriba el código de la empresa para confirmar'); this.deleteTenant(slug); return { ok: true }; }
+      if (method === 'GET' && !seg[2]) return this.detail(slug);
       if (method === 'GET' && seg[2] === 'backup') return { __download: this.backupTenant(slug), filename: `${slug}-${new Date().toISOString().slice(0, 10)}.db` };
-      if (method === 'PUT' && !seg[2]) { if (!this.row(slug)) throw new HttpError(404, 'Empresa no encontrada'); P.prepare('UPDATE tenants SET name=COALESCE(?,name), note=? WHERE slug=?').run(String(body.name || '').trim() || null, body.note || null, slug); return { ok: true }; }
+      if (method === 'PUT' && !seg[2]) return this.updateTenant(slug, body);
     }
     throw new HttpError(404, 'Ruta no encontrada');
   }

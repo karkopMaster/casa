@@ -440,3 +440,68 @@ test('demos: creación automática, restricciones, vencimiento, demo pública co
   const other = P.tenant(real.slug).api.dispatch('POST', '/api/login', {}, { username: real.admin_user, password: real.password }, '', 'x');
   assert.throws(() => P.tenant(p1.empresa).api.dispatch('GET', '/api/me', {}, {}, other.token, 'x'), /Sesión expirada/);
 });
+
+test('plataforma: editar, eliminar a la papelera, restaurar y borrar definitivamente', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { Platform } = require('../src/platform');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plat-edit-'));
+  const P = new Platform(dir);
+  process.env.SETUP_TOKEN = 'tok-edit-1';
+  try {
+    await P.handle('POST', 'setup', { username: 'dueno', password: 'una-clave-larga-1', setup_token: 'tok-edit-1' }, '', 'x');
+    const { token } = await P.handle('POST', 'login', { username: 'dueno', password: 'una-clave-larga-1' }, '', 'x');
+    const a = await P.handle('POST', 'tenants', { name: 'Tienda Original', nit: '900111222-3' }, token);
+    // editar: nombre, contacto y nota; el nombre también cambia dentro del negocio
+    const ed = await P.handle('PUT', `tenants/${a.slug}`, { name: 'Tienda Renombrada', nit: '900999888-1', address: 'Calle 9 # 8-7', phone: '3001112222', note: 'cliente VIP' }, token);
+    assert.equal(ed.name, 'Tienda Renombrada'); assert.equal(ed.nit, '900999888-1'); assert.equal(ed.note, 'cliente VIP');
+    assert.equal(P.tenant(a.slug).db.prepare("SELECT value FROM settings WHERE key='company_name'").get().value, 'Tienda Renombrada');
+    await assert.rejects(P.handle('PUT', `tenants/${a.slug}`, { name: '   ' }, token), /vacío/);
+    assert.equal((await P.handle('GET', `tenants/${a.slug}`, {}, token)).address, 'Calle 9 # 8-7');
+    // ampliar una demo
+    const d = await P.createDemo({ days: 1 });
+    const antes = Date.parse(P.row(d.slug).expires_at);
+    await P.handle('PUT', `tenants/${d.slug}`, { extend_days: 7 }, token);
+    assert.ok(Date.parse(P.row(d.slug).expires_at) - antes >= 6.9 * 86400000);
+    // eliminar: exige escribir el código, libera el código y deja los datos en la papelera
+    await assert.rejects(P.handle('POST', `tenants/${a.slug}/eliminar`, { confirm: 'otro' }, token), /Escriba el código/);
+    const login = P.tenant(a.slug).api.dispatch('POST', '/api/login', {}, { username: a.admin_user, password: a.password }, '', 'x');
+    P.tenant(a.slug).api.dispatch('POST', '/api/thirds', {}, { kind: 'cliente', name: 'Dato que no debe perderse' }, login.token, 'x');
+    await P.handle('POST', `tenants/${a.slug}/eliminar`, { confirm: a.slug }, token);
+    assert.equal(P.row(a.slug), undefined); assert.equal(P.tenant(a.slug), null);
+    assert.ok(!fs.existsSync(path.join(dir, 'tenants', a.slug + '.db')));
+    const papelera = await P.handle('GET', 'papelera', {}, token);
+    assert.equal(papelera.length, 1); assert.equal(papelera[0].slug, a.slug);
+    // el código queda libre: otro negocio puede usarlo, y entonces no se puede restaurar encima
+    const otro = await P.handle('POST', 'tenants', { name: 'Otro', slug: a.slug }, token);
+    await assert.rejects(P.handle('POST', `papelera/${papelera[0].id}/restaurar`, {}, token), /ya lo usa/);
+    await P.handle('POST', `tenants/${otro.slug}/eliminar`, { confirm: otro.slug }, token);
+    // restaurar: vuelve con TODOS sus datos y su nombre editado
+    const rest = await P.handle('POST', `papelera/${papelera[0].id}/restaurar`, {}, token);
+    assert.equal(rest.slug, a.slug);
+    const lg = P.tenant(a.slug).api.dispatch('POST', '/api/login', {}, { username: a.admin_user, password: a.password }, '', 'x');
+    assert.ok(P.tenant(a.slug).api.dispatch('GET', '/api/thirds', {}, {}, lg.token, 'x').some((t) => t.name === 'Dato que no debe perderse'));
+    assert.equal(P.row(a.slug).name, 'Tienda Renombrada');
+    // borrar para siempre: pide el código y elimina el archivo
+    const restantes = await P.handle('GET', 'papelera', {}, token);
+    await assert.rejects(P.handle('POST', `papelera/${restantes[0].id}/borrar`, { confirm: 'x' }, token), /Escriba el código/);
+    await P.handle('POST', `papelera/${restantes[0].id}/borrar`, { confirm: restantes[0].slug }, token);
+    assert.equal((await P.handle('GET', 'papelera', {}, token)).length, 0);
+    // la papelera se vacía sola a los 30 días
+    await P.handle('POST', `tenants/${a.slug}/eliminar`, { confirm: a.slug }, token);
+    P.pdb.prepare("UPDATE papelera SET expires_at='2000-01-01T00:00:00.000Z'").run();
+    assert.ok(P.purgeExpired() >= 1); assert.equal(P.listTrash().length, 0);
+    assert.equal(fs.readdirSync(path.join(dir, 'archivo')).filter((f) => f.endsWith('.db')).length, 0);
+  } finally { delete process.env.SETUP_TOKEN; }
+});
+
+test('reenviar accesos: contraseña nueva; en una demo se restablecen los tres usuarios', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { Platform } = require('../src/platform');
+  const P = new Platform(fs.mkdtempSync(path.join(os.tmpdir(), 'plat-acc-')));
+  const d = await P.createDemo({ days: 1 });
+  const r = P.resetAdmin(d.slug);
+  assert.deepEqual(r.users.sort(), ['contador', 'demo', 'vendedor']); assert.notEqual(r.password, d.password);
+  const t = P.tenant(d.slug);
+  for (const u of r.users) assert.ok(t.api.dispatch('POST', '/api/login', {}, { username: u, password: r.password }, '', 'x').token);
+  assert.throws(() => t.api.dispatch('POST', '/api/login', {}, { username: 'demo', password: d.password }, '', 'x'), /incorrectos/); // la anterior ya no sirve
+});
