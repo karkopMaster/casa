@@ -8,6 +8,7 @@ const { HttpError } = require('./core');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '127.0.0.1';
+const TRUST_PROXY = process.env.TRUST_PROXY === '1'; // detrás de Caddy/nginx: la IP real viene en X-Forwarded-For
 const DB_FILE = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'contabilidad.db');
 const PUBLIC = path.join(__dirname, '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json' };
@@ -44,7 +45,7 @@ function createServer(db) {
             const buf = fs.readFileSync(tmp); fs.unlinkSync(tmp);
             return send(res, 200, buf, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="contabilidad-${new Date().toISOString().slice(0, 10)}.db"` });
           }
-          const out = api.dispatch(req.method, url.pathname, query, body, token, req.socket.remoteAddress, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers });
+          const out = api.dispatch(req.method, url.pathname, query, body, token, (TRUST_PROXY && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress, { raw: Buffer.concat(chunks).toString('utf8'), headers: req.headers });
           return Promise.resolve(out).then((r) => send(res, 200, r)).catch(fail);
         } catch (e) { fail(e); }
       });

@@ -53,3 +53,11 @@ Exporte las hojas *Productos* y *Clientes/Proveedores* a CSV y use el botón **I
 ## Estructura
 `src/core.js` (asientos, inventario, configuración) · `src/docs.js` (ventas/compras/pagos/anulaciones) · `src/reports.js` · `src/api.js` (REST) · `public/` (interfaz).
 Todas las operaciones se ejecutan en transacciones: si algo falla, no queda nada a medias.
+
+## Instalar en un VPS que ya tiene otras apps (Ubuntu + pm2 + Caddy)
+```bash
+DOMINIO=contabilidad.midominio.co bash contabilidad/deploy/instalar-contabilidad.sh            # SIMULACIÓN: no cambia nada
+DOMINIO=contabilidad.midominio.co bash contabilidad/deploy/instalar-contabilidad.sh --aplicar  # instala
+```
+Antes revise el servidor con `deploy/auditar-vps.sh` (solo lectura). El instalador comprueba Node ≥ 22.13, puerto libre, nombre de pm2, DNS del dominio y que el Caddyfile valide; respalda el Caddyfile, instala en `~/contabilidad` con datos en `~/contabilidad-data`, lanza **solo** el proceso `contabilidad` en 127.0.0.1, agrega un bloque al Caddyfile (validado antes, `reload`, nunca `restart`) y deja `volver-atras.sh`. No abre puertos ni toca otras apps.
+Copia diaria opcional: `node src/backup.js ~/backups-contabilidad 30` (copia consistente con la app en marcha).
