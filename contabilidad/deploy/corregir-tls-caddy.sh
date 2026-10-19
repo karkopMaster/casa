@@ -23,6 +23,9 @@ python3 - "$TMP/nuevo.json" "$DOMINIO" <<'PY'
 import json, sys
 cfg = json.load(open(sys.argv[1])); dom = sys.argv[2]
 pols = cfg.get("apps", {}).get("tls", {}).get("automation", {}).get("policies", [])
+print("Políticas de certificado tal como las adaptaría Caddy (orden = prioridad):")
+for i, p in enumerate(pols):
+    print("  ", i, p.get("subjects") or "(todas)", "ON_DEMAND" if p.get("on_demand") else "", [x.get("module") for x in (p.get("issuers") or [])] or "")
 mine = [p for p in pols if dom in (p.get("subjects") or [])]
 if not mine: print("[FALLA] no se creó una política de certificado propia para", dom); sys.exit(1)
 if any(p.get("on_demand") for p in mine): print("[FALLA] la política de", dom, "sigue siendo on_demand"); sys.exit(1)
