@@ -84,7 +84,7 @@ function build(db, opts = {}) {
   // ---------- configuración ----------
   on('GET', '/api/settings', ALL, () => publicSettings());
   const SETTING_KEYS = ['company_name', 'company_nit', 'company_address', 'company_phone', 'currency', 'allow_negative_stock', 'lock_date',
-    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'expiry_tiers', 'company_dv', 'company_city_code', 'company_email', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
+    'pfx_venta', 'pfx_compra', 'pfx_gasto', 'use_inventory', 'track_lots', 'ui_default', 'expiry_tiers', 'company_dv', 'company_city_code', 'company_email', 'decimals', 'dian_text', 'print_footer', ...Object.keys(C.DEFAULT_ROLES)];
   on('PUT', '/api/settings', ADMIN, ({ body }) => tx(db, () => {
     for (const k of SETTING_KEYS) {
       if (body[k] === undefined) continue;
@@ -92,6 +92,7 @@ function build(db, opts = {}) {
       if (k === 'lock_date' && v) C.needDate(v, 'fecha de cierre');
       if (k.startsWith('acc_') && !db.prepare('SELECT 1 FROM accounts WHERE code=?').get(v)) throw bad(`La cuenta ${v} no existe`);
       if (k === 'expiry_tiers' && !R.parseTiers(v).length) throw bad('Formato de descuentos: días:porcentaje separados por coma, ej. 30:30,60:20,90:10');
+      if (k === 'ui_default' && !['facil', 'completo'].includes(v)) v = 'facil';
       if (k === 'decimals') v = String(Math.min(2, Math.max(0, parseInt(v, 10) || 0)));
       if (k === 'allow_negative_stock' || k === 'use_inventory' || k === 'track_lots') v = v === '1' || v === 'true' ? '1' : '0';
       C.setSetting(db, k, v);

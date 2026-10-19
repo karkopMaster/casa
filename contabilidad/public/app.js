@@ -96,17 +96,20 @@ async function render() {
   if (location.hash.startsWith('#plataforma')) return renderPlatform(app);
   if (!S.token || !S.empresa) return renderLogin(app);
   try { const me = await api('GET', '/me'); S.user = me.user; S.cfg = me.settings; } catch (e) { return renderLogin(app); }
+  if (fMode() === 'facil') return renderFacil(app);
+  document.body.classList.remove('facil'); document.documentElement.style.fontSize = '';
   const { v, sub } = route();
   const nav = NAV.filter((n) => n[2].includes(S.user.role));
   const cur = nav.find((n) => n[0] === v) || nav[0];
   app.innerHTML = `<div class="shell"><nav class="side" id="side"><div class="brand">${esc(S.cfg.company_name)}</div>
     ${nav.map((n) => `<a href="#${n[0]}" class="${n[0] === cur[0] ? 'on' : ''}">${esc(n[1])}</a>`).join('')}
-    <div class="who">${esc(S.user.name)}<br><span class="mut">${esc(S.user.role)}</span><br><a href="#" id="pw" style="padding:4px 0">Cambiar contraseña</a><a href="#" id="out" style="padding:4px 0">Cerrar sesión</a></div></nav>
+    <div class="who">${esc(S.user.name)}<br><span class="mut">${esc(S.user.role)}</span><br><a href="#" id="easy" style="padding:4px 0">🔠 Modo fácil (letra grande)</a><a href="#" id="pw" style="padding:4px 0">Cambiar contraseña</a><a href="#" id="out" style="padding:4px 0">Cerrar sesión</a></div></nav>
     <main class="main">${S.cfg.is_demo === '1' ? `<div class="card" style="background:var(--warn);color:#fff;border:0;padding:10px 14px;font-weight:600">🧪 DEMOSTRACIÓN · todos los datos son ficticios. No ingrese información real. Esta demo se elimina el ${esc(S.cfg.demo_expires || '')}.</div>` : ''}<div class="top"><div style="display:flex;gap:10px;align-items:center"><button class="btn sec burger" id="burger" aria-label="Menú">☰</button><h1 id="title">${esc(cur[1])}</h1></div><div id="topbtn" class="actions"></div></div><div id="view">Cargando…</div></main></div>`;
   $('#burger').onclick = () => $('#side').classList.toggle('open');
   $$('#side a[href^="#"]').forEach((a) => a.addEventListener('click', () => $('#side').classList.remove('open')));
   $('#out').onclick = async (e) => { e.preventDefault(); try { await api('POST', '/logout'); } catch (_) {} S.token = null; try { localStorage.removeItem('token'); } catch (_) {} render(); };
   $('#pw').onclick = (e) => { e.preventDefault(); changePassword(); };
+  $('#easy').onclick = (e) => { e.preventDefault(); setMode('facil'); };
   try { await VIEWS[cur[0]]($('#view'), sub); } catch (e) { $('#view').innerHTML = `<div class="card neg">${esc(e.message)}</div>`; }
 }
 window.addEventListener('hashchange', render);

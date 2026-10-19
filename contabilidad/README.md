@@ -81,3 +81,12 @@ Copia diaria opcional: `node src/backup.js ~/backups-contabilidad 30` (copia con
 - **Demo pública** (opcional, apagada por defecto): al activarla aparece en el ingreso el botón "Probar una demo con datos de ejemplo". Dura 24 h, máximo 25 simultáneas y 3 por hora por visitante.
 - Las demos no permiten guardar llaves de pasarelas, conectar un proveedor real de facturación electrónica, cambiar la contraseña ni descargar copias.
 - Seguridad: la facturación electrónica por API solo acepta URLs https públicas (puerto 443, sin IPs internas ni redirecciones), para que ningún negocio pueda usarla contra servicios internos del servidor.
+
+## Modo fácil (para personas mayores y uso diario en computador)
+La plataforma abre por defecto en **modo fácil**: pantalla de botones grandes y de colores, una acción por pantalla, letra ajustable (A− / A+) y confirmación grande antes de guardar cualquier dinero.
+- **Inicio:** 9 botones, cada acción con su color: 🛒 Vender (verde), 💵 Cobrar (azul), 📦 Comprar (naranja), 🧾 Pagar a proveedor (morado), 💸 Registrar un gasto (rojo), 👥 Mis clientes (turquesa), 🏷️ Mis productos (ámbar), ⚠️ Avisos (rosa), 📊 ¿Cómo voy? (gris). Los medios de pago también tienen color: efectivo (verde), Nequi/Daviplata (fucsia), banco (azul), tarjeta (naranja), fiado (ámbar).
+- **Vender:** ¿quién compra? → productos a la izquierda y lo que lleva el cliente a la derecha (con + / − grandes; admite lector de código de barras) → ¿cómo paga? → revisar → guardar. Aplica sola la lista mayorista y el descuento por vencimiento, y ofrece imprimir y enviar a la DIAN.
+- **Cobrar / Pagar:** lista de lo pendiente (las vencidas primero) con un botón grande: "Recibí todo" u otro valor → cómo → confirmar.
+- **Gasto:** categorías con botón (arriendo, luz y agua, internet, nómina, transporte, publicidad, otro) → valor → cómo pagó → confirmar.
+- El **vendedor** solo ve Vender, Cobrar, Mis clientes y Mis productos.
+- "Ver todas las opciones" abre el modo completo (contabilidad, informes, configuración); en el modo completo, "🔠 Modo fácil" vuelve. La pantalla por defecto de cada negocio se cambia en Configuración → Empresa.

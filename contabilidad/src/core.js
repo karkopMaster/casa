@@ -246,7 +246,7 @@ function setupCompany(db, b) {
       company_name: name, company_nit: b.company_nit || '', company_address: b.company_address || '', company_phone: b.company_phone || '',
       currency: String(b.currency || '$').slice(0, 5), decimals: '0', country: 'CO', sector: b.sector === 'general' ? 'general' : 'cabello', profile,
       dian_text: '', print_footer: 'Documento de control interno. La factura electrónica se emite con su proveedor tecnológico autorizado por la DIAN.',
-      use_inventory: profile === 'servicios' ? '0' : '1', allow_negative_stock: '0', lock_date: '',
+      ui_default: 'facil', use_inventory: profile === 'servicios' ? '0' : '1', allow_negative_stock: '0', lock_date: '',
       pfx_venta: 'FV-', pfx_compra: 'FC-', pfx_gasto: 'GA-', next_venta: 1, next_compra: 1, next_gasto: 1,
     };
     for (const [k, v] of Object.entries(s)) setSetting(db, k, v);
